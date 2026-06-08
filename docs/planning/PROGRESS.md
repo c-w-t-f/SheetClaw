@@ -15,9 +15,9 @@ project-level progress.
 
 ## Current position
 
-> **Next action:** Confirm D1/D4/D5/D8 decisions, then begin Phase 1 (scaffold + HTTPS + self-test).
-> **Active phase:** Phase 0 — `done`; Phase 1 — `not started`
-> **Last updated:** 2026-06-08 by Claude (Phase 0 spikes complete)
+> **Next action:** Begin Phase 2 — core types, Zustand store, LLMClient interface, OpenAI/Generic adapter.
+> **Active phase:** Phase 2 — `not started`
+> **Last updated:** 2026-06-08 by Claude (G0 passed)
 
 ---
 
@@ -26,7 +26,7 @@ project-level progress.
 | Phase | Status | Completed | What landed |
 |-------|--------|-----------|-------------|
 | 0 — Spikes & decisions | done | 2026-06-08 | D1/D4/D5/D8 resolved via live CORS probes + OIDC discovery + Office.js analysis |
-| 1 — Scaffold + HTTPS + self-test | in progress | — | Vite+React+TS scaffolded; cert installed; StartupSelfTest built; dev server confirmed at https://localhost:3000 — awaiting G0 sideload test |
+| 1 — Scaffold + HTTPS + self-test | done | 2026-06-08 | Vite+React+TS scaffold; office-addin-dev-certs trusted cert; manifest.xml shared-folder sideload; StartupSelfTest component; dev server at https://localhost:3000 |
 | 2 — Store + LLMClient + OpenAI adapter | not started | — | — |
 | 3 — Anthropic + Ollama + harness | not started | — | — |
 | 4 — Registry + ToolExecutor + read tools | not started | — | — |
@@ -40,7 +40,7 @@ project-level progress.
 
 | Gate | Phase | Result | Date | Notes |
 |------|-------|--------|------|-------|
-| G0 — Load & self-test | 1 | pending | — | — |
+| G0 — Load & self-test | 1 | **PASS** | 2026-06-08 | Pane sideloaded over https://localhost:3000; cert ✅ loopback ✅; Ollama ❌ (not running — expected, not a blocker) |
 | G1 — Tool-calling harness | 3 | pending | — | per-model pass/fail recorded here |
 | G2 — OAuth popup in Edge WebView | 8 | pending | — | — |
 | G3 — Acceptance | 9 | pending | — | — |
@@ -62,4 +62,5 @@ project-level progress.
 
 > One line per working session: date — phase touched — outcome / handoff.
 
-- 2026-06-08 — Phase 0 — All four spikes executed (live CORS probes to OpenAI/Anthropic/DeepSeek/OpenRouter, OIDC discovery for OpenAI OAuth, Office.js multi-workbook analysis, Excel/WebView2 version identification). Decisions D1/D4/D5/D8 resolved. DeepSeek and OpenRouter added as named Generic-adapter presets (CORS confirmed both). Awaiting user confirmation before Phase 1.
+- 2026-06-08 — Phase 1 — G0 PASSED. Pane sideloads over trusted HTTPS; cert ✅ loopback ✅; Ollama ❌ (not started, not a blocker). Phase 2 next.
+- 2026-06-08 — Phase 0 — All four spikes executed (live CORS probes to OpenAI/Anthropic/DeepSeek/OpenRouter, OIDC discovery for OpenAI OAuth, Office.js multi-workbook analysis, Excel/WebView2 version identification). Decisions D1/D4/D5/D8 resolved. DeepSeek and OpenRouter added as named Generic-adapter presets (CORS confirmed both).
