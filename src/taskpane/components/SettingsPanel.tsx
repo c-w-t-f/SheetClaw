@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Body1Strong,
   Button,
   Caption1,
+  Combobox,
   Field,
   Input,
   Label,
   MessageBar,
   MessageBarBody,
+  Option,
+  Spinner,
   Switch,
   Tab,
   TabList,
@@ -16,24 +19,51 @@ import {
 } from '@fluentui/react-components';
 import { useStore } from '../../store/index';
 import { createAdapter } from '../../adapters/index';
-import type { ProviderKey } from '../../types';
+import type { ProviderConfig, ProviderKey } from '../../types';
 
 const PROVIDERS: { key: ProviderKey; label: string }[] = [
-  { key: 'ollama',    label: 'Ollama' },
-  { key: 'openai',   label: 'OpenAI' },
-  { key: 'anthropic',label: 'Anthropic' },
-  { key: 'generic',  label: 'Generic' },
+  { key: 'ollama',     label: 'Ollama' },
+  { key: 'openai',    label: 'OpenAI' },
+  { key: 'anthropic', label: 'Anthropic' },
+  { key: 'generic',   label: 'Generic' },
 ];
 
+// Curated fallback lists shown before any live fetch.
+// Ollama has no fallback — depends entirely on what's locally installed.
+// Anthropic: listModels() is a static local list, no key needed, so we always fetch.
+// OpenAI: filter for chat-capable models after live fetch; show curated set before that.
+// Generic/OpenRouter: show popular options as hints.
+const STATIC_MODELS: Partial<Record<ProviderKey, string[]>> = {
+  openai: [
+    'gpt-4o', 'gpt-4o-mini',
+    'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano',
+    'o3', 'o3-mini', 'o4-mini',
+  ],
+  generic: [
+    'openai/gpt-4o', 'openai/gpt-4o-mini',
+    'anthropic/claude-sonnet-4-6', 'anthropic/claude-opus-4-8',
+    'deepseek/deepseek-chat', 'deepseek/deepseek-r1',
+    'qwen/qwen3-235b-a22b', 'qwen/qwen3.7-max',
+    'meta-llama/llama-3.3-70b-instruct',
+    'google/gemini-2.0-flash-001',
+  ],
+};
+
+// Chat-capable model prefixes for OpenAI — used to filter /v1/models noise.
+const OPENAI_CHAT_PREFIXES = ['gpt-', 'o1', 'o3', 'o4', 'chatgpt-'];
+function isOpenAIChatModel(id: string): boolean {
+  return OPENAI_CHAT_PREFIXES.some(p => id.startsWith(p));
+}
+
 export default function SettingsPanel() {
-  const providers   = useStore(s => s.providers);
-  const appConfig   = useStore(s => s.appConfig);
-  const authStates  = useStore(s => s.authStates);
-  const setProvider = useStore(s => s.setProvider);
+  const providers        = useStore(s => s.providers);
+  const appConfig        = useStore(s => s.appConfig);
+  const authStates       = useStore(s => s.authStates);
+  const setProvider      = useStore(s => s.setProvider);
   const setActiveProvider = useStore(s => s.setActiveProvider);
-  const setAppConfig = useStore(s => s.setAppConfig);
-  const saveApiKey  = useStore(s => s.saveApiKey);
-  const clearApiKey = useStore(s => s.clearApiKey);
+  const setAppConfig     = useStore(s => s.setAppConfig);
+  const saveApiKey       = useStore(s => s.saveApiKey);
+  const clearApiKey      = useStore(s => s.clearApiKey);
 
   const [selectedTab, setSelectedTab] = useState<ProviderKey>(appConfig.activeProvider);
 
@@ -56,9 +86,10 @@ export default function SettingsPanel() {
         ))}
       </TabList>
 
-      {/* Provider config form */}
+      {/* Provider config — key forces remount on tab switch so state resets */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
         <ProviderForm
+          key={selectedTab}
           providerKey={selectedTab}
           cfg={providers[selectedTab]}
           auth={authStates[selectedTab]}
@@ -94,32 +125,81 @@ export default function SettingsPanel() {
 
 interface ProviderFormProps {
   providerKey: ProviderKey;
-  cfg: import('../../types').ProviderConfig;
+  cfg: ProviderConfig;
   auth: import('../../types').AuthState;
   isActive: boolean;
   onSetActive: () => void;
-  onSave: (patch: Partial<import('../../types').ProviderConfig>) => void;
+  onSave: (patch: Partial<ProviderConfig>) => void;
   onSaveKey: (key: string) => void;
   onClearKey: () => void;
 }
 
-function ProviderForm({ providerKey, cfg, auth, isActive, onSetActive, onSave, onSaveKey, onClearKey }: ProviderFormProps) {
+type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
+
+function ProviderForm({
+  providerKey, cfg, auth, isActive,
+  onSetActive, onSave, onSaveKey, onClearKey,
+}: ProviderFormProps) {
   const [baseUrl, setBaseUrl]   = useState(cfg.baseUrl);
   const [model, setModel]       = useState(cfg.model);
   const [apiKey, setApiKey]     = useState('');
   const [showKey, setShowKey]   = useState(false);
+
+  // Pre-seed model list: prefer persisted knownModels, then static fallback.
+  // Ollama has no static fallback — list depends on local installation.
+  const initialList = cfg.knownModels?.map(m => m.id)
+    ?? STATIC_MODELS[providerKey]
+    ?? [];
+  const [modelList, setModelList] = useState<string[]>(initialList);
+  const [loadState, setLoadState] = useState<LoadState>(
+    initialList.length > 0 ? 'loaded' : 'idle'
+  );
+  const [loadError, setLoadError] = useState('');
+
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [testMsg, setTestMsg]   = useState('');
-  const [models, setModels]     = useState<string[]>([]);
 
   const needsKey = providerKey !== 'ollama';
-  const keySet = !!auth._key;
+  const keySet   = !!auth._key;
 
-  function save() {
-    onSave({ baseUrl, model, enabled: true });
-    if (apiKey) onSaveKey(apiKey);
-    else if (!keySet && !needsKey) onSaveKey(''); // Ollama: mark authenticated
-    setApiKey('');
+  // Auto-load on mount:
+  //  - ollama: always (no auth)
+  //  - anthropic: always (listModels() is a local static list, no key needed)
+  //  - openai / generic: only if key already saved
+  useEffect(() => {
+    const canLoad = providerKey === 'ollama'
+      || providerKey === 'anthropic'
+      || !!auth._key;
+    if (!canLoad) return;
+    void fetchModels(baseUrl, auth._key ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function fetchModels(url: string, key: string): Promise<string[]> {
+    setLoadState('loading');
+    setLoadError('');
+    try {
+      const adapter = createAdapter({ ...cfg, baseUrl: url }, key);
+      let found = await adapter.listModels();
+
+      // OpenAI's /v1/models returns embeddings, audio, image models too.
+      // Filter down to chat-capable models for a cleaner picker.
+      if (providerKey === 'openai') {
+        const chat = found.filter(m => isOpenAIChatModel(m.id));
+        if (chat.length > 0) found = chat;
+      }
+
+      const ids = found.map(m => m.id).sort();
+      setModelList(ids);
+      setLoadState('loaded');
+      // Persist to store so the list survives a settings close/reopen
+      onSave({ knownModels: found });
+      return ids;
+    } catch (e) {
+      setLoadState('error');
+      setLoadError(e instanceof Error ? e.message : String(e));
+      return [];
+    }
   }
 
   async function test() {
@@ -127,16 +207,30 @@ function ProviderForm({ providerKey, cfg, auth, isActive, onSetActive, onSave, o
     setTestMsg('');
     try {
       const key = apiKey || auth._key || '';
-      const adapter = createAdapter({ ...cfg, baseUrl, model }, key);
-      const found = await adapter.listModels();
-      setModels(found.map(m => m.id));
+      const ids = await fetchModels(baseUrl, key);
       setTestStatus('ok');
-      setTestMsg(`Connected — ${found.length} model${found.length !== 1 ? 's' : ''} found`);
-    } catch (e) {
+      setTestMsg(`Connected — ${ids.length} model${ids.length !== 1 ? 's' : ''} available`);
+    } catch {
       setTestStatus('error');
-      setTestMsg(e instanceof Error ? e.message : String(e));
+      setTestMsg(loadError || 'Connection failed');
     }
   }
+
+  function save() {
+    onSave({ baseUrl, model, enabled: true });
+    if (apiKey) {
+      onSaveKey(apiKey);
+      setApiKey('');
+    } else if (!needsKey && !keySet) {
+      onSaveKey(''); // mark Ollama authenticated
+    }
+  }
+
+  const modelLabel = loadState === 'loading'
+    ? 'Model (loading…)'
+    : loadState === 'loaded' && modelList.length > 0
+    ? `Model (${modelList.length} available)`
+    : 'Model';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -159,26 +253,65 @@ function ProviderForm({ providerKey, cfg, auth, isActive, onSetActive, onSave, o
         />
       </Field>
 
-      {/* Model */}
-      <Field label={`Model${models.length > 0 ? ` (${models.length} available)` : ''}`}>
-        <Input
-          value={model}
-          onChange={(_, d) => setModel(d.value)}
-          placeholder="e.g. llama3.2 or gpt-4o"
-          list={`models-${providerKey}`}
-          size="small"
-        />
-        {models.length > 0 && (
-          <datalist id={`models-${providerKey}`}>
-            {models.map(m => <option key={m} value={m} />)}
-          </datalist>
+      {/* Model — Combobox when list is available, Input fallback */}
+      <Field label={modelLabel}>
+        {loadState === 'loading' ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 32 }}>
+            <Spinner size="extra-small" />
+            <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>Fetching models…</Caption1>
+          </div>
+        ) : modelList.length > 0 ? (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <Combobox
+              value={model}
+              selectedOptions={model ? [model] : []}
+              onOptionSelect={(_, d) => setModel(d.optionValue ?? '')}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="Select or type a model…"
+              size="small"
+              style={{ flex: 1, minWidth: 0 }}
+              freeform
+            >
+              {modelList.map(id => (
+                <Option key={id} value={id}>{id}</Option>
+              ))}
+            </Combobox>
+            <Button
+              size="small"
+              appearance="subtle"
+              title="Refresh model list"
+              onClick={() => void fetchModels(baseUrl, auth._key ?? '')}
+            >↺</Button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <Input
+              value={model}
+              onChange={(_, d) => setModel(d.value)}
+              placeholder={providerKey === 'ollama' ? 'e.g. llama3.2' : 'e.g. gpt-4o'}
+              size="small"
+              style={{ flex: 1, fontFamily: 'monospace', fontSize: 12 }}
+            />
+            <Button
+              size="small"
+              appearance="subtle"
+              title="Fetch available models"
+              disabled={needsKey && !keySet && !apiKey}
+              onClick={() => void fetchModels(baseUrl, apiKey || auth._key || '')}
+            >↺</Button>
+          </div>
+        )}
+        {loadState === 'error' && (
+          <Caption1 style={{ color: tokens.colorPaletteRedForeground1, marginTop: 2 }}>
+            {loadError}
+          </Caption1>
         )}
       </Field>
 
       {/* API Key */}
       {needsKey && (
         <Field label="API Key">
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <Input
               type={showKey ? 'text' : 'password'}
               placeholder={keySet ? auth.apiKeyMasked : 'Enter API key…'}
@@ -205,7 +338,7 @@ function ProviderForm({ providerKey, cfg, auth, isActive, onSetActive, onSave, o
             ? tokens.colorPaletteGreenForeground1
             : auth.state === 'unauthenticated' && !needsKey
             ? tokens.colorPaletteGreenForeground1
-            : tokens.colorNeutralForeground3
+            : tokens.colorNeutralForeground3,
         }}>
           {auth.state === 'authenticated' ? '✓ authenticated'
             : auth.state === 'unauthenticated' && !needsKey ? '✓ no auth needed'
