@@ -43,6 +43,26 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => v
   const [input, setInput] = useState('');
   const [initError, setInitError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | HTMLSpanElement>(null);
+  const [textareaHeight, setTextareaHeight] = useState(32);
+
+  useEffect(() => {
+    const el = textareaRef.current?.tagName === 'TEXTAREA' 
+      ? (textareaRef.current as HTMLTextAreaElement)
+      : (textareaRef.current as HTMLSpanElement)?.querySelector('textarea');
+    if (el) {
+      const prevMin = el.style.minHeight;
+      el.style.height = '0px';
+      el.style.minHeight = '0px';
+      const scrollHeight = el.scrollHeight;
+      
+      // Add a small buffer for the wrapper's padding/border (typically ~10-12px)
+      setTextareaHeight(Math.min(Math.max(scrollHeight + 12, 32), 200));
+      
+      el.style.height = '100%';
+      el.style.minHeight = prevMin;
+    }
+  }, [input]);
 
   const session = useStore(s => s.currentSession);
   const messages = useStore(s => s.messages);
@@ -190,11 +210,13 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => v
         gridTemplateColumns: 'minmax(0, 1fr) 36px',
         gap: 6,
         flexShrink: 0,
-        alignItems: 'center',
+        alignItems: 'flex-end',
       }}>
         <Textarea
-          style={{ width: '100%', height: 32, minHeight: 32, maxHeight: 32 }}
+          ref={textareaRef as any}
+          style={{ width: '100%', minHeight: 32, height: textareaHeight }}
           placeholder="Ask me anything..."
+          rows={1}
           value={input}
           onChange={(_, d) => setInput(d.value)}
           onKeyDown={e => {
