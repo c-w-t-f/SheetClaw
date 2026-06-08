@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type CSSProperties } from 'react';
 import {
   Body1Strong,
   Button,
@@ -33,6 +33,31 @@ function fmtTokens(n: number): string {
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
   return String(n);
 }
+
+const breakdownTableStyle: CSSProperties = {
+  width: '100%',
+  tableLayout: 'fixed',
+};
+
+const nameColumnStyle: CSSProperties = {
+  width: '52%',
+  minWidth: 0,
+};
+
+const numericColumnStyle: CSSProperties = {
+  width: '16%',
+  textAlign: 'right',
+  whiteSpace: 'nowrap',
+};
+
+const modelNameStyle: CSSProperties = {
+  display: 'block',
+  fontFamily: 'monospace',
+  overflowWrap: 'anywhere',
+  wordBreak: 'break-word',
+  lineHeight: 1.25,
+  minWidth: 0,
+};
 
 export default function UsageDashboard() {
   const [range, setRange] = useState<TimeRange>('week');
@@ -137,22 +162,22 @@ function BreakdownTable({ title, rows }: { title: string; rows: Array<{ key: str
   return (
     <div>
       <Body1Strong style={{ display: 'block', marginBottom: 4 }}>{title}</Body1Strong>
-      <Table size="extra-small">
+      <Table size="extra-small" style={breakdownTableStyle}>
         <TableHeader>
           <TableRow>
-            <TableHeaderCell>Name</TableHeaderCell>
-            <TableHeaderCell>Tokens</TableHeaderCell>
-            <TableHeaderCell>Cost</TableHeaderCell>
-            <TableHeaderCell>Turns</TableHeaderCell>
+            <TableHeaderCell style={nameColumnStyle}>Name</TableHeaderCell>
+            <TableHeaderCell style={numericColumnStyle}>Tokens</TableHeaderCell>
+            <TableHeaderCell style={numericColumnStyle}>Cost</TableHeaderCell>
+            <TableHeaderCell style={numericColumnStyle}>Turns</TableHeaderCell>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map(r => (
             <TableRow key={r.key}>
-              <TableCell><Caption1 style={{ fontFamily: 'monospace' }}>{r.key}</Caption1></TableCell>
-              <TableCell><Caption1>{fmtTokens(r.totalTokens)}</Caption1></TableCell>
-              <TableCell><Caption1>${fmt(r.costUsd, 4)}</Caption1></TableCell>
-              <TableCell><Caption1>{r.turns}</Caption1></TableCell>
+              <TableCell style={nameColumnStyle}><Caption1 style={modelNameStyle}>{r.key}</Caption1></TableCell>
+              <TableCell style={numericColumnStyle}><Caption1>{fmtTokens(r.totalTokens)}</Caption1></TableCell>
+              <TableCell style={numericColumnStyle}><Caption1>${fmt(r.costUsd, 4)}</Caption1></TableCell>
+              <TableCell style={numericColumnStyle}><Caption1>{r.turns}</Caption1></TableCell>
             </TableRow>
           ))}
         </TableBody>

@@ -30,7 +30,7 @@ type SettingsTabKey = 'ollama' | 'apiKeys' | 'generic';
 const SETTINGS_TABS: { key: SettingsTabKey; label: string }[] = [
   { key: 'ollama', label: 'Ollama' },
   { key: 'generic', label: 'OpenRouter' },
-  { key: 'apiKeys', label: 'Generic' },
+  { key: 'apiKeys', label: 'Other API' },
 ];
 
 const API_KEY_PROVIDERS: { key: ApiKeyProvider; label: string }[] = [
