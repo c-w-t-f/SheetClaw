@@ -10,6 +10,7 @@ import ChatPanel from './components/ChatPanel';
 import UsageDashboard from './components/UsageDashboard';
 import SettingsPanel from './components/SettingsPanel';
 import Footer from './components/Footer';
+import WorkbookScopeStrip from './components/WorkbookScopeStrip';
 
 type TabId = 'chat' | 'usage' | 'settings';
 
@@ -30,9 +31,11 @@ export default function App() {
         <Tab value="settings">Settings</Tab>
       </TabList>
 
+      <WorkbookScopeStrip />
+
       {/* Active surface */}
       <div style={{ flex: 1, minHeight: 0, height: '100%' }}>
-        {tab === 'chat'     && <ChatPanel />}
+        {tab === 'chat'     && <ChatPanel onOpenSettings={() => setTab('settings')} />}
         {tab === 'usage'    && <UsageDashboard />}
         {tab === 'settings' && <SettingsPanel />}
       </div>

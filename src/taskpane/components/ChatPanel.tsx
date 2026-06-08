@@ -4,33 +4,35 @@ import {
   Body1Strong,
   Button,
   Caption1,
-  Input,
   MessageBar,
+  MessageBarActions,
   MessageBarBody,
   Spinner,
+  Textarea,
   tokens,
 } from '@fluentui/react-components';
 import { useStore } from '../../store/index';
 import type { Message, CellDiff } from '../../types';
-import { createWorkbookLayer } from '../../workbook/index';
-import { getAgentLoop } from '../../agent/index';
 import { createAdapter } from '../../adapters/index';
-
-let _layer: ReturnType<typeof createWorkbookLayer> | null = null;
-
-function getLayer() {
-  if (!_layer) _layer = createWorkbookLayer();
-  return _layer;
-}
-
-function getLoop() {
-  const { registry, executor, snapshots } = getLayer();
-  return getAgentLoop(registry, executor, snapshots);
-}
+import { getTaskpaneAgentLoop, getTaskpaneWorkbookLayer } from '../workbookLayer';
 
 const STATUS_RUNNING = new Set(['building', 'calling_llm', 'parsing', 'executing_tool']);
 
-export default function ChatPanel() {
+const STATUS_LABELS: Record<string, string> = {
+  building: 'Preparing context',
+  calling_llm: 'Calling model',
+  parsing: 'Reading response',
+  executing_tool: 'Running workbook tool',
+  awaiting_confirmation: 'Awaiting confirmation',
+};
+
+const EXAMPLE_PROMPTS = [
+  'Summarize the active sheet',
+  'Sum B2:B13 into B14',
+  'Make a bar chart from A1:B12',
+];
+
+export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => void }) {
   const [input, setInput] = useState('');
   const [initError, setInitError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -56,7 +58,7 @@ export default function ChatPanel() {
     : '';
 
   useEffect(() => {
-    getLayer().registry.refresh().catch(e => {
+    getTaskpaneWorkbookLayer().registry.refresh().catch(e => {
       setInitError(e instanceof Error ? e.message : String(e));
     });
   }, []);
@@ -74,29 +76,32 @@ export default function ChatPanel() {
     const cfg = providers[provider];
     const authState = authStates[provider];
     const client = createAdapter(cfg, authState);
-    const scope = { workbookId: getLayer().registry.getActiveId() ?? 'host' };
+    const scope = { workbookId: getTaskpaneWorkbookLayer().registry.getActiveId() ?? 'host' };
 
     try {
-      await getLoop().start(text, scope, client, cfg);
+      await getTaskpaneAgentLoop().start(text, scope, client, cfg);
     } catch {
       // Errors are captured inside loop.start and written to store.
     }
   }
 
-  function stop() { getLoop().stop(); }
-  function applyConfirm() { getLoop().resolveConfirmation('apply'); }
-  function cancelConfirm() { getLoop().resolveConfirmation('cancel'); }
+  function stop() { getTaskpaneAgentLoop().stop(); }
+  function applyConfirm() { getTaskpaneAgentLoop().resolveConfirmation('apply'); }
+  function cancelConfirm() { getTaskpaneAgentLoop().resolveConfirmation('cancel'); }
 
   async function undo() {
     if (!session) return;
-    const snap = getLayer().snapshots.lastUndoable(session.id);
+    const snap = getTaskpaneWorkbookLayer().snapshots.lastUndoable(session.id);
     if (!snap) return;
     try {
-      await getLayer().snapshots.undo(snap.id, fn => Excel.run(fn));
+      await getTaskpaneWorkbookLayer().snapshots.undo(snap.id, fn => Excel.run(fn));
     } catch (e) {
       setInitError(e instanceof Error ? e.message : String(e));
     }
   }
+
+  const visibleMessages = messages.filter(m => (m as Message & { sessionId?: string }).sessionId === session?.id);
+  const showEmptyState = visibleMessages.length === 0 && !isRunning && !awaitingConfirm;
 
   return (
     <div style={{
@@ -117,6 +122,11 @@ export default function ChatPanel() {
       {!providerReady && (
         <MessageBar intent="warning">
           <MessageBarBody>{providerWarning}</MessageBarBody>
+          {onOpenSettings && (
+            <MessageBarActions>
+              <Button size="small" appearance="subtle" onClick={onOpenSettings}>Settings</Button>
+            </MessageBarActions>
+          )}
         </MessageBar>
       )}
 
@@ -128,7 +138,14 @@ export default function ChatPanel() {
         flexDirection: 'column',
         gap: 8,
       }}>
-        {messages.filter(m => (m as Message & { sessionId?: string }).sessionId === session?.id).map(m => (
+        {showEmptyState && (
+          <EmptyChatState
+            providerReady={providerReady}
+            onPickPrompt={setInput}
+            onOpenSettings={onOpenSettings}
+          />
+        )}
+        {visibleMessages.map(m => (
           <MessageBubble key={m.id} message={m} />
         ))}
         {awaitingConfirm && session?.pendingChange && (
@@ -144,7 +161,9 @@ export default function ChatPanel() {
         {isRunning && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Spinner size="extra-small" />
-            <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>{session?.status ?? 'running'}...</Caption1>
+            <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>
+              {STATUS_LABELS[session?.status ?? ''] ?? 'Running'}...
+            </Caption1>
           </div>
         )}
         <div ref={bottomRef} />
@@ -166,9 +185,9 @@ export default function ChatPanel() {
         flexShrink: 0,
         alignItems: 'center',
       }}>
-        <Input
-          style={{ width: '100%' }}
-          placeholder="Ask something about this workbook..."
+        <Textarea
+          style={{ width: '100%', height: 32, minHeight: 32, maxHeight: 32 }}
+          placeholder="Ask me anything..."
           value={input}
           onChange={(_, d) => setInput(d.value)}
           onKeyDown={e => {
@@ -178,12 +197,65 @@ export default function ChatPanel() {
             }
           }}
           disabled={isRunning || awaitingConfirm || !providerReady}
+          resize="none"
         />
         {isRunning
           ? <Button appearance="secondary" onClick={stop}>Stop</Button>
           : <Button appearance="primary" onClick={() => void send()} disabled={!input.trim() || !providerReady}>Send</Button>
         }
       </div>
+    </div>
+  );
+}
+
+function EmptyChatState({
+  providerReady,
+  onPickPrompt,
+  onOpenSettings,
+}: {
+  providerReady: boolean;
+  onPickPrompt: (prompt: string) => void;
+  onOpenSettings?: () => void;
+}) {
+  return (
+    <div style={{
+      margin: 'auto 0',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 10,
+      alignItems: 'stretch',
+    }}>
+      <div>
+        <Body1Strong>{providerReady ? 'Ready for this workbook' : 'Set up a provider to start'}</Body1Strong>
+        <Caption1 style={{
+          display: 'block',
+          marginTop: 2,
+          color: tokens.colorNeutralForeground3,
+        }}>
+          {providerReady
+            ? 'Pick a starter prompt or ask your own question.'
+            : 'Choose a provider, model, and authentication method in Settings.'}
+        </Caption1>
+      </div>
+      {providerReady ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {EXAMPLE_PROMPTS.map(prompt => (
+            <Button
+              key={prompt}
+              size="small"
+              appearance="secondary"
+              style={{ justifyContent: 'flex-start' }}
+              onClick={() => onPickPrompt(prompt)}
+            >
+              {prompt}
+            </Button>
+          ))}
+        </div>
+      ) : onOpenSettings ? (
+        <Button appearance="primary" size="small" onClick={onOpenSettings}>
+          Open Settings
+        </Button>
+      ) : null}
     </div>
   );
 }

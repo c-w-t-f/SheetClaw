@@ -13,7 +13,7 @@ export default function Footer() {
 
   if (!totals && !session) return null;
 
-  const tokens_ = totals ? totals.inputTokens + totals.outputTokens : 0;
+  const tokenCount = totals ? totals.inputTokens + totals.outputTokens : 0;
   const cost = totals?.costUsd ?? 0;
   const model = session?.model ?? '';
   const budget = session?.tokenBudget;
@@ -24,23 +24,43 @@ export default function Footer() {
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
+      gap: 8,
       padding: '4px 12px',
       borderTop: `1px solid ${tokens.colorNeutralStroke2}`,
       background: tokens.colorNeutralBackground2,
       flexShrink: 0,
     }}>
-      <Caption1 style={{ color: tokens.colorNeutralForeground3, fontFamily: 'monospace' }}>
-        ◷ {fmtTokens(tokens_)} tok
-        {cost > 0 ? ` · ~$${cost.toFixed(4)}` : ''}
+      <Caption1 style={{
+        color: tokens.colorNeutralForeground3,
+        fontFamily: 'monospace',
+        whiteSpace: 'nowrap',
+      }}>
+        {fmtTokens(tokenCount)} tok
+        {cost > 0 ? ` - ~$${cost.toFixed(4)}` : ''}
       </Caption1>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <div style={{
+        display: 'flex',
+        gap: 8,
+        alignItems: 'center',
+        minWidth: 0,
+      }}>
         {usedPct !== null && usedPct > 70 && (
           <Caption1 style={{ color: usedPct > 90 ? tokens.colorPaletteRedForeground1 : tokens.colorPaletteYellowForeground1 }}>
             {Math.round(usedPct)}% ctx
           </Caption1>
         )}
         {model && (
-          <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>{model}</Caption1>
+          <Caption1
+            title={model}
+            style={{
+              color: tokens.colorNeutralForeground3,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {model}
+          </Caption1>
         )}
       </div>
     </div>

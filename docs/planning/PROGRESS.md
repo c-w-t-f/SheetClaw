@@ -15,9 +15,9 @@ project-level progress.
 
 ## Current position
 
-> **Next action:** Begin Phase 9 polish + acceptance pass.
+> **Next action:** Run G3 manual Excel acceptance scenarios: sum/write + undo, format, chart, pivot, multi-step, and host-only workbook scope behavior.
 > **Active phase:** Phase 9 - `in progress`
-> **Last updated:** 2026-06-08 by Codex (Phase 8 complete; OpenRouter OAuth confirmed working in Excel WebView2; 78/78 tests pass)
+> **Last updated:** 2026-06-08 by Codex (Phase 9 UI polish pass landed; 78/78 tests and build pass; G3 manual Excel acceptance pending)
 
 ---
 
@@ -34,7 +34,7 @@ project-level progress.
 | 6 - Usage + pricing + dashboard | done | 2026-06-08 | Bundled pricing.json (D7 resolved), findPricing/computeCost, 30-day rolling storage, UsageDashboard + Footer + tab nav, loop wired to recordUsage; 56/56 tests |
 | 7 - Charts + pivots | done | 2026-06-08 | 5 chart tools + 5 pivot tools; ToolUnsupportedError; captureStructural snapshots; ExcelApi 1.8+ capability gating; 73/73 tests, tsc clean |
 | 8 - Auth / OAuth (+ optional sidecar) | done | 2026-06-08 | OpenRouter PKCE Office Dialog flow, same-origin localhost start/callback pages, OAuth credential storage, adapter auth resolution, OpenRouter model auto-selection, Settings provider consolidation/polish, expanded Generic provider presets; G2 confirmed in Excel WebView2 |
-| 9 - Polish + acceptance | in progress | - | - |
+| 9 - Polish + acceptance | in progress | - | Host-only workbook scope strip, shared taskpane workbook layer, Chat empty/provider-ready states, multiline composer, clearer run status, footer cleanup; G3 manual Excel acceptance pending |
 
 ## Gate log
 
@@ -62,6 +62,7 @@ project-level progress.
 
 > One line per working session: date - phase touched - outcome / handoff.
 
+- 2026-06-08 - Phase 9 - UI/state polish pass: added host-only workbook scope strip + shared workbook layer, Chat provider CTA/empty starter prompts/multiline composer/status labels, and footer text/layout cleanup. 78/78 tests, build clean. Browser smoke check blocked by local sandbox startup failure; G3 manual Excel acceptance still pending.
 - 2026-06-08 - Phase 8 - Expanded visible `Generic` tab into API-key provider hub: OpenAI, Anthropic, DeepSeek, Groq, Mistral, Together AI, Kimi, GLM, Qwen, and Llama. Added separate provider config/auth keys and routed OpenAI-compatible providers through OpenAIAdapter. 78/78 tests, build clean.
 - 2026-06-08 - Phase 8 - G2 PASS: user confirmed OpenRouter OAuth works from Excel WebView2 after the Office Dialog callback flow and OpenRouter model auto-selection fixes. Phase 8 complete; Phase 9 active.
 - 2026-06-08 - Phase 8 - Settings polish: committed chat composer bottom anchoring (`867ec46`), consolidated provider tabs (`ace8558`), renamed/reordered tabs to `Ollama | OpenRouter | Generic`, and made `Set as active` a full-width button above the provider selector.
