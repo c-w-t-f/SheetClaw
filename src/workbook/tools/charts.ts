@@ -1,6 +1,6 @@
 import type { ToolSpec } from '../../types';
 import type { ToolHandler } from '../executor';
-import { ToolValidationError } from '../executor';
+import { ToolUnsupportedError } from '../unsupported-error';
 
 // ── Chart type allow-list ──────────────────────────────────────────────────
 
@@ -14,7 +14,7 @@ function getChartType(name: string): Excel.ChartType {
     case 'scatter':  return Excel.ChartType.xyscatter;
     case 'doughnut': return Excel.ChartType.doughnut;
     case 'radar':    return Excel.ChartType.radar;
-    default: throw new ToolValidationError(
+    default: throw new ToolUnsupportedError(
       `Unsupported chart_type "${name}". Supported: column, bar, line, pie, area, scatter, doughnut, radar`
     );
   }

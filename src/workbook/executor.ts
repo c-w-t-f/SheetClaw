@@ -1,6 +1,8 @@
 import type { ToolCall, ToolResult, ToolSpec, SessionScope } from '../types';
 import { WorkbookRegistry, WorkbookNotFoundError } from './registry';
 import type { ExcelRunner } from './registry';
+import { ToolUnsupportedError } from './unsupported-error';
+export { ToolUnsupportedError };
 
 export type ToolHandler = (
   args: Record<string, unknown>,
@@ -82,8 +84,12 @@ export class ToolExecutor {
       const data = await this.runner(ctx => entry.handler(call.arguments, ctx, this.registry));
       return { toolCallId: call.id, ok: true, data, durationMs: Date.now() - start };
     } catch (e) {
-      if (e instanceof ToolValidationError) {
-        return err(call.id, 'ValidationError', e.message);
+      // Use both instanceof and e.name so the mapping is robust across Vitest module boundaries.
+      if (e instanceof ToolValidationError || (e instanceof Error && e.name === 'ToolValidationError')) {
+        return err(call.id, 'ValidationError', (e as Error).message);
+      }
+      if (e instanceof ToolUnsupportedError || (e instanceof Error && e.name === 'ToolUnsupportedError')) {
+        return err(call.id, 'Unsupported', (e as Error).message);
       }
       if (e instanceof WorkbookNotFoundError) {
         return err(call.id, 'WorkbookNotFound', e.message);

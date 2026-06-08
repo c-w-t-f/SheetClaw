@@ -319,6 +319,22 @@ export class AgentLoop {
 
     const result = await this.executor.execute(call, scope);
     if (snapshotId) result.snapshotId = snapshotId;
+
+    // Structural snapshot: after create_chart/create_pivot we know the object name, so capture
+    // a coarse snapshot that undo can use to delete the created object.
+    if (result.ok && !snapshotId) {
+      const data = result.data as Record<string, unknown> | undefined;
+      if ((call.name === 'create_chart' || call.name === 'create_pivot') && typeof data?.name === 'string') {
+        const kind: 'chart' | 'pivot' = call.name === 'create_chart' ? 'chart' : 'pivot';
+        const snap = this.snapshots.captureStructural(
+          session.id, session.scope.workbookId,
+          (call.arguments.sheet as string) ?? '',
+          kind, data.name, { action: call.name }
+        );
+        result.snapshotId = snap.id;
+      }
+    }
+
     this.append(session.id, msg<ToolResultMessage>(session.id, { role: 'tool', toolCallId: call.id, result }));
   }
 

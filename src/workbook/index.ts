@@ -1,6 +1,6 @@
 export { WorkbookRegistry, WorkbookNotFoundError } from './registry';
 export type { ExcelRunner } from './registry';
-export { ToolExecutor, ToolValidationError } from './executor';
+export { ToolExecutor, ToolValidationError, ToolUnsupportedError } from './executor';
 export type { ToolHandler } from './executor';
 export { SnapshotManager } from './snapshot';
 export { PHASE4_READ_SPECS } from './tools/specs';

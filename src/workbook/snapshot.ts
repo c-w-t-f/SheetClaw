@@ -40,11 +40,59 @@ export class SnapshotManager {
     return entry;
   }
 
+  captureStructural(
+    sessionId: string,
+    workbookId: string,
+    sheet: string,
+    kind: 'chart' | 'pivot',
+    target: string,
+    definition: unknown
+  ): SnapshotEntry {
+    const id = ulid();
+    const entry: SnapshotEntry = {
+      id,
+      sessionId,
+      workbookId,
+      sheet,
+      kind,
+      target,
+      before: { definition },
+      createdAt: new Date().toISOString(),
+      undone: false,
+      restoreFidelity: 'structural-coarse',
+    };
+    this.entries.set(id, entry);
+    return entry;
+  }
+
   async undo(snapshotId: string, runner: ExcelRunner): Promise<void> {
     const entry = this.entries.get(snapshotId);
     if (!entry) throw new Error(`Snapshot not found: ${snapshotId}`);
     if (entry.undone) throw new Error(`Snapshot already undone: ${snapshotId}`);
-    if (entry.kind !== 'range') throw new Error('Only range snapshots supported in Phase 5');
+
+    if (entry.kind === 'chart') {
+      const def = entry.before.definition as { action?: string } | undefined;
+      if (def?.action === 'create_chart') {
+        await runner(async ctx => {
+          ctx.workbook.worksheets.getItem(entry.sheet).charts.getItem(entry.target).delete();
+          await ctx.sync();
+        });
+      }
+      entry.undone = true;
+      return;
+    }
+
+    if (entry.kind === 'pivot') {
+      const def = entry.before.definition as { action?: string } | undefined;
+      if (def?.action === 'create_pivot') {
+        await runner(async ctx => {
+          ctx.workbook.pivotTables.getItem(entry.target).delete();
+          await ctx.sync();
+        });
+      }
+      entry.undone = true;
+      return;
+    }
 
     await runner(async ctx => {
       const range = ctx.workbook.worksheets.getItem(entry.sheet).getRange(entry.target);

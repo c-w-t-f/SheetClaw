@@ -15,9 +15,9 @@ project-level progress.
 
 ## Current position
 
-> **Next action:** Begin Phase 7 — Chart & pivot tools.
-> **Active phase:** Phase 7 — `not started`
-> **Last updated:** 2026-06-08 by Claude (Phase 6 done, 56/56 tests pass)
+> **Next action:** Begin Phase 8 — Auth / OAuth (+ optional sidecar).
+> **Active phase:** Phase 8 — `not started`
+> **Last updated:** 2026-06-08 by Claude (Phase 7 done, 73/73 tests pass)
 
 ---
 
@@ -32,7 +32,7 @@ project-level progress.
 | 4 — Registry + ToolExecutor + read tools | done | 2026-06-08 | WorkbookRegistry (D8 host-only, injectable runner), ToolExecutor (arg validation, error mapping), 8 read-only tool specs + handlers; 28/28 tests |
 | 5 — Loop + context + snapshot + write tools + gate | done | 2026-06-08 | AgentLoop + ContextBuilder + SnapshotManager + write_range + clear_range + ChatPanel; 46/46 tests, tsc clean |
 | 6 — Usage + pricing + dashboard | done | 2026-06-08 | Bundled pricing.json (D7 resolved), findPricing/computeCost, 30-day rolling storage, UsageDashboard + Footer + tab nav, loop wired to recordUsage; 56/56 tests |
-| 7 — Charts + pivots | not started | — | — |
+| 7 — Charts + pivots | done | 2026-06-08 | 5 chart tools + 5 pivot tools; ToolUnsupportedError; captureStructural snapshots; ExcelApi 1.8+ capability gating; 73/73 tests, tsc clean |
 | 8 — Auth / OAuth (+ optional sidecar) | not started | — | — |
 | 9 — Polish + acceptance | not started | — | — |
 
@@ -62,6 +62,7 @@ project-level progress.
 
 > One line per working session: date — phase touched — outcome / handoff.
 
+- 2026-06-08 — Phase 7 — 5 chart tools (list/create/modify/delete/set_data) + 5 pivot tools (list/get/create/add_field/refresh); ToolUnsupportedError (separate module to avoid Vitest JS-shadow bug); captureStructural undo; ExcelApi 1.8 capability gating; 73/73 tests, tsc clean.
 - 2026-06-08 — Phase 6 — Bundled pricing (D7), findPricing/computeCost, loop→recordUsage wiring, 30-day rolling window, UsageDashboard + Footer + tab nav (Chat/Usage). 56/56 tests, tsc clean.
 - 2026-06-08 — Phase 5 — AgentLoop + ContextBuilder + SnapshotManager + write_range/clear_range handlers + system prompt + ChatPanel. 46/46 tests, tsc clean. Manual end-to-end verify pending.
 - 2026-06-08 — Phase 4 — WorkbookRegistry + ToolExecutor + 8 read-only tools (read_range, list_sheets, get_sheet_context, get_selection, list_workbooks, get_active_workbook, set_scope_workbook, get_named_ranges). 28/28 tests, tsc clean.

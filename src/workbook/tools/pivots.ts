@@ -1,6 +1,13 @@
 import type { ToolSpec } from '../../types';
 import type { ToolHandler } from '../executor';
 import { ToolValidationError } from '../executor';
+import { ToolUnsupportedError } from '../unsupported-error';
+
+function assertPivotApi(ctx: Excel.RequestContext): void {
+  if (!('pivotTables' in ctx.workbook)) {
+    throw new ToolUnsupportedError('Pivot tables require ExcelApi 1.8+');
+  }
+}
 
 // ── Aggregation function mapping ───────────────────────────────────────────
 
@@ -101,6 +108,7 @@ export const PIVOT_SPECS: ToolSpec[] = [
 // ── Handlers ───────────────────────────────────────────────────────────────
 
 export const handleListPivots: ToolHandler = async (args, ctx) => {
+  assertPivotApi(ctx);
   if (args.sheet) {
     const sheet = ctx.workbook.worksheets.getItem(args.sheet as string);
     sheet.pivotTables.load('items/name');
@@ -117,6 +125,7 @@ export const handleListPivots: ToolHandler = async (args, ctx) => {
 };
 
 export const handleGetPivot: ToolHandler = async (args, ctx) => {
+  assertPivotApi(ctx);
   const pivot = ctx.workbook.pivotTables.getItem(args.name as string);
   pivot.rowHierarchies.load('items/name');
   pivot.columnHierarchies.load('items/name');
@@ -135,6 +144,7 @@ export const handleGetPivot: ToolHandler = async (args, ctx) => {
 };
 
 export const handleCreatePivot: ToolHandler = async (args, ctx) => {
+  assertPivotApi(ctx);
   const srcSheet  = ctx.workbook.worksheets.getItem(args.sheet as string);
   const destSheet = args.dest_sheet
     ? ctx.workbook.worksheets.getItem(args.dest_sheet as string)
@@ -151,6 +161,7 @@ export const handleCreatePivot: ToolHandler = async (args, ctx) => {
 };
 
 export const handleAddPivotField: ToolHandler = async (args, ctx) => {
+  assertPivotApi(ctx);
   const area  = args.area as string;
   const field = args.field as string;
 
@@ -183,6 +194,7 @@ export const handleAddPivotField: ToolHandler = async (args, ctx) => {
 };
 
 export const handleRefreshPivot: ToolHandler = async (args, ctx) => {
+  assertPivotApi(ctx);
   const pivot = ctx.workbook.pivotTables.getItem(args.name as string);
   pivot.refresh();
   await ctx.sync();
