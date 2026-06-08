@@ -15,9 +15,9 @@ project-level progress.
 
 ## Current position
 
-> **Next action:** Begin Phase 5 — AgentLoop + ContextBuilder + SnapshotManager + write tools + confirmation gate.
-> **Active phase:** Phase 5 — `not started`
-> **Last updated:** 2026-06-08 by Claude (Phase 4 done, 28/28 tests pass)
+> **Next action:** Begin Phase 6 — Usage tracking + pricing dashboard.
+> **Active phase:** Phase 6 — `not started`
+> **Last updated:** 2026-06-08 by Claude (Phase 5 done, 46/46 tests pass)
 
 ---
 
@@ -30,7 +30,7 @@ project-level progress.
 | 2 — Store + LLMClient + OpenAI adapter | done | 2026-06-08 | All types (src/types/); Zustand store (config/auth/session/usage slices + localStorage wrapper); OpenAI/Generic adapter with SSE streaming + tool-call reassembly + usage extraction; 6/6 vitest tests pass |
 | 3 — Anthropic + Ollama + harness | done | 2026-06-08 | Anthropic/Ollama adapters + adapter factory + harness + HarnessPanel; 14/14 tests; G1 PASS (Ollama llama3.1, OpenRouter qwen3.7-max) |
 | 4 — Registry + ToolExecutor + read tools | done | 2026-06-08 | WorkbookRegistry (D8 host-only, injectable runner), ToolExecutor (arg validation, error mapping), 8 read-only tool specs + handlers; 28/28 tests |
-| 5 — Loop + context + snapshot + write tools + gate | not started | — | — |
+| 5 — Loop + context + snapshot + write tools + gate | done | 2026-06-08 | AgentLoop + ContextBuilder + SnapshotManager + write_range + clear_range + ChatPanel; 46/46 tests, tsc clean |
 | 6 — Usage + pricing + dashboard | not started | — | — |
 | 7 — Charts + pivots | not started | — | — |
 | 8 — Auth / OAuth (+ optional sidecar) | not started | — | — |
@@ -62,6 +62,7 @@ project-level progress.
 
 > One line per working session: date — phase touched — outcome / handoff.
 
+- 2026-06-08 — Phase 5 — AgentLoop + ContextBuilder + SnapshotManager + write_range/clear_range handlers + system prompt + ChatPanel. 46/46 tests, tsc clean. Manual end-to-end verify pending.
 - 2026-06-08 — Phase 4 — WorkbookRegistry + ToolExecutor + 8 read-only tools (read_range, list_sheets, get_sheet_context, get_selection, list_workbooks, get_active_workbook, set_scope_workbook, get_named_ranges). 28/28 tests, tsc clean.
 - 2026-06-08 — Phase 3 — Anthropic/Ollama adapters, adapter factory, harness.ts, HarnessPanel.tsx. 14/14 tests, tsc clean. G1 PASS: Ollama llama3.1:latest ✅ OpenRouter qwen/qwen3.7-max ✅. Fixed OpenRouter duplicate finish_reason bug.
 - 2026-06-08 — Phase 2 — All types, Zustand store, OpenAI/Generic adapter, SSE fixture tests. 6/6 tests pass, tsc clean. Phase 3 next.

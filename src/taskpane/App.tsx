@@ -1,13 +1,10 @@
-import { FluentProvider, webLightTheme, Divider } from '@fluentui/react-components';
-import StartupSelfTest from './components/StartupSelfTest';
-import HarnessPanel from './components/HarnessPanel';
+import { FluentProvider, webLightTheme } from '@fluentui/react-components';
+import ChatPanel from './components/ChatPanel';
 
 export default function App() {
   return (
-    <FluentProvider theme={webLightTheme}>
-      <StartupSelfTest />
-      <Divider />
-      <HarnessPanel />
+    <FluentProvider theme={webLightTheme} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <ChatPanel />
     </FluentProvider>
   );
 }
