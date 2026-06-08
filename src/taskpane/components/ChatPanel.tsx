@@ -32,6 +32,13 @@ const EXAMPLE_PROMPTS = [
   'Make a bar chart from A1:B12',
 ];
 
+const composerActionStyle = {
+  width: 36,
+  minWidth: 36,
+  height: 32,
+  padding: 0,
+};
+
 export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => void }) {
   const [input, setInput] = useState('');
   const [initError, setInitError] = useState<string | null>(null);
@@ -180,7 +187,7 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => v
 
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) 96px',
+        gridTemplateColumns: 'minmax(0, 1fr) 36px',
         gap: 6,
         flexShrink: 0,
         alignItems: 'center',
@@ -200,11 +207,47 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => v
           resize="none"
         />
         {isRunning
-          ? <Button appearance="secondary" onClick={stop}>Stop</Button>
-          : <Button appearance="primary" onClick={() => void send()} disabled={!input.trim() || !providerReady}>Send</Button>
+          ? (
+            <Button
+              appearance="secondary"
+              onClick={stop}
+              style={composerActionStyle}
+              aria-label="Stop"
+              title="Stop"
+            >
+              Stop
+            </Button>
+          )
+          : (
+            <Button
+              appearance="primary"
+              onClick={() => void send()}
+              disabled={!input.trim() || !providerReady}
+              style={composerActionStyle}
+              aria-label="Send"
+              title="Send"
+              icon={<SendIcon />}
+            />
+          )
         }
       </div>
     </div>
+  );
+}
+
+function SendIcon() {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: 0,
+        height: 0,
+        borderTop: '5px solid transparent',
+        borderBottom: '5px solid transparent',
+        borderLeft: '9px solid currentColor',
+        transform: 'translateX(1px)',
+      }}
+    />
   );
 }
 
