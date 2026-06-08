@@ -15,9 +15,9 @@ project-level progress.
 
 ## Current position
 
-> **Next action:** Begin Phase 3 — Anthropic + Ollama adapters + tool-calling harness (Gate G1).
-> **Active phase:** Phase 3 — `not started`
-> **Last updated:** 2026-06-08 by Claude (Phase 2 done, 6/6 tests pass)
+> **Next action:** G1 gate verification — user runs HarnessPanel against real providers; record pass/fail per model.
+> **Active phase:** Phase 3 — `in progress`
+> **Last updated:** 2026-06-08 by Claude (adapters done, 14/14 tests pass, HarnessPanel wired)
 
 ---
 
@@ -28,7 +28,7 @@ project-level progress.
 | 0 — Spikes & decisions | done | 2026-06-08 | D1/D4/D5/D8 resolved via live CORS probes + OIDC discovery + Office.js analysis |
 | 1 — Scaffold + HTTPS + self-test | done | 2026-06-08 | Vite+React+TS scaffold; office-addin-dev-certs trusted cert; manifest.xml shared-folder sideload; StartupSelfTest component; dev server at https://localhost:3000 |
 | 2 — Store + LLMClient + OpenAI adapter | done | 2026-06-08 | All types (src/types/); Zustand store (config/auth/session/usage slices + localStorage wrapper); OpenAI/Generic adapter with SSE streaming + tool-call reassembly + usage extraction; 6/6 vitest tests pass |
-| 3 — Anthropic + Ollama + harness | not started | — | — |
+| 3 — Anthropic + Ollama + harness | in progress | — | Anthropic/Ollama adapters + adapter factory + harness logic + HarnessPanel; 14/14 tests pass; tsc clean; awaiting G1 live verification |
 | 4 — Registry + ToolExecutor + read tools | not started | — | — |
 | 5 — Loop + context + snapshot + write tools + gate | not started | — | — |
 | 6 — Usage + pricing + dashboard | not started | — | — |
@@ -62,6 +62,7 @@ project-level progress.
 
 > One line per working session: date — phase touched — outcome / handoff.
 
+- 2026-06-08 — Phase 3 (partial) — Anthropic adapter (SSE, tool_use, usage), Ollama adapter (OpenAI-compat + lenient parser), adapter factory, harness.ts, HarnessPanel.tsx. 14/14 tests, tsc clean. G1 live verification pending.
 - 2026-06-08 — Phase 2 — All types, Zustand store, OpenAI/Generic adapter, SSE fixture tests. 6/6 tests pass, tsc clean. Phase 3 next.
 - 2026-06-08 — Phase 1 — G0 PASSED. Pane sideloads over trusted HTTPS; cert ✅ loopback ✅; Ollama ❌ (not started, not a blocker). Phase 2 next.
 - 2026-06-08 — Phase 0 — All four spikes executed (live CORS probes to OpenAI/Anthropic/DeepSeek/OpenRouter, OIDC discovery for OpenAI OAuth, Office.js multi-workbook analysis, Excel/WebView2 version identification). Decisions D1/D4/D5/D8 resolved. DeepSeek and OpenRouter added as named Generic-adapter presets (CORS confirmed both).
