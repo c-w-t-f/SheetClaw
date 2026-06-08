@@ -53,8 +53,8 @@ const DEFAULT_PROVIDERS: Record<ProviderKey, ProviderConfig> = {
     label: 'Generic / OpenRouter',
     enabled: false,
     baseUrl: 'https://openrouter.ai/api/v1',
-    model: '',
-    authMode: 'apikey',
+    model: 'openai/gpt-4o-mini',
+    authMode: 'oauth',
     authStateRef: 'xl.auth.generic',
     contextLimits: { maxContextTokens: 128000, historyTokenCap: 100000, maxInlineSheetCells: 5000 },
   },
@@ -119,6 +119,17 @@ export const createConfigSlice: StateCreator<ConfigSlice> = (set, get) => ({
     const active = appConfig.activeProvider;
     if (providers[active] && !providers[active].enabled) {
       providers = { ...providers, [active]: { ...providers[active], enabled: true } };
+      storage.put(STORAGE_KEY, providers);
+    }
+
+    // Migration: early Phase 8 stored OpenRouter configs with an empty model,
+    // which makes OpenRouter reject chat calls with HTTP 404.
+    const generic = providers.generic;
+    if (generic?.baseUrl === 'https://openrouter.ai/api/v1' && !generic.model.trim()) {
+      providers = {
+        ...providers,
+        generic: { ...generic, model: DEFAULT_PROVIDERS.generic.model },
+      };
       storage.put(STORAGE_KEY, providers);
     }
 

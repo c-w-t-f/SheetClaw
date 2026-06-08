@@ -19,20 +19,17 @@ import {
 } from '@fluentui/react-components';
 import { useStore } from '../../store/index';
 import { createAdapter } from '../../adapters/index';
-import type { ProviderConfig, ProviderKey } from '../../types';
+import type { AuthState, ProviderConfig, ProviderKey } from '../../types';
+import { getAuthCredential } from '../../auth/credentials';
+import { signInWithOpenRouter } from '../../auth/oauthFlow';
 
 const PROVIDERS: { key: ProviderKey; label: string }[] = [
-  { key: 'ollama',     label: 'Ollama' },
-  { key: 'openai',    label: 'OpenAI' },
+  { key: 'ollama', label: 'Ollama' },
+  { key: 'openai', label: 'OpenAI' },
   { key: 'anthropic', label: 'Anthropic' },
-  { key: 'generic',   label: 'Generic' },
+  { key: 'generic', label: 'Generic' },
 ];
 
-// Curated fallback lists shown before any live fetch.
-// Ollama has no fallback — depends entirely on what's locally installed.
-// Anthropic: listModels() is a static local list, no key needed, so we always fetch.
-// OpenAI: filter for chat-capable models after live fetch; show curated set before that.
-// Generic/OpenRouter: show popular options as hints.
 const STATIC_MODELS: Partial<Record<ProviderKey, string[]>> = {
   openai: [
     'gpt-4o', 'gpt-4o-mini',
@@ -49,27 +46,49 @@ const STATIC_MODELS: Partial<Record<ProviderKey, string[]>> = {
   ],
 };
 
-// Chat-capable model prefixes for OpenAI — used to filter /v1/models noise.
 const OPENAI_CHAT_PREFIXES = ['gpt-', 'o1', 'o3', 'o4', 'chatgpt-'];
 function isOpenAIChatModel(id: string): boolean {
   return OPENAI_CHAT_PREFIXES.some(p => id.startsWith(p));
 }
 
+function isOpenRouterBaseUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.origin === 'https://openrouter.ai';
+  } catch {
+    return false;
+  }
+}
+
+function chooseDefaultModel(providerKey: ProviderKey, baseUrl: string, ids: string[]): string {
+  if (providerKey === 'generic' && isOpenRouterBaseUrl(baseUrl)) {
+    const preferred = [
+      'openai/gpt-4o-mini',
+      'openai/gpt-4o',
+      'google/gemini-2.0-flash-001',
+      'anthropic/claude-sonnet-4-6',
+    ];
+    return preferred.find(id => ids.includes(id)) ?? ids[0] ?? '';
+  }
+  return ids[0] ?? '';
+}
+
 export default function SettingsPanel() {
-  const providers        = useStore(s => s.providers);
-  const appConfig        = useStore(s => s.appConfig);
-  const authStates       = useStore(s => s.authStates);
-  const setProvider      = useStore(s => s.setProvider);
+  const providers = useStore(s => s.providers);
+  const appConfig = useStore(s => s.appConfig);
+  const authStates = useStore(s => s.authStates);
+  const setProvider = useStore(s => s.setProvider);
   const setActiveProvider = useStore(s => s.setActiveProvider);
-  const setAppConfig     = useStore(s => s.setAppConfig);
-  const saveApiKey       = useStore(s => s.saveApiKey);
-  const clearApiKey      = useStore(s => s.clearApiKey);
+  const setAppConfig = useStore(s => s.setAppConfig);
+  const saveApiKey = useStore(s => s.saveApiKey);
+  const saveOAuthCredential = useStore(s => s.saveOAuthCredential);
+  const setAuthState = useStore(s => s.setAuthState);
+  const clearApiKey = useStore(s => s.clearApiKey);
 
   const [selectedTab, setSelectedTab] = useState<ProviderKey>(appConfig.activeProvider);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      {/* Provider tabs */}
       <TabList
         selectedValue={selectedTab}
         onTabSelect={(_, d: SelectTabData) => setSelectedTab(d.value as ProviderKey)}
@@ -80,13 +99,12 @@ export default function SettingsPanel() {
           <Tab key={p.key} value={p.key}>
             {p.label}
             {appConfig.activeProvider === p.key && (
-              <span style={{ marginLeft: 4, color: tokens.colorBrandForeground1, fontSize: 10 }}>●</span>
+              <span style={{ marginLeft: 4, color: tokens.colorBrandForeground1, fontSize: 10 }}>*</span>
             )}
           </Tab>
         ))}
       </TabList>
 
-      {/* Provider config — key forces remount on tab switch so state resets */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
         <ProviderForm
           key={selectedTab}
@@ -97,11 +115,12 @@ export default function SettingsPanel() {
           onSetActive={() => setActiveProvider(selectedTab)}
           onSave={(patch) => setProvider(selectedTab, patch)}
           onSaveKey={(key) => saveApiKey(selectedTab, key)}
+          onSaveOAuthCredential={(credential) => saveOAuthCredential(selectedTab, credential)}
+          onSetAuthState={(patch) => setAuthState(selectedTab, patch)}
           onClearKey={() => clearApiKey(selectedTab)}
         />
       </div>
 
-      {/* Safety / global settings */}
       <div style={{
         flexShrink: 0,
         padding: '10px 12px',
@@ -121,16 +140,20 @@ export default function SettingsPanel() {
   );
 }
 
-// ── Per-provider form ──────────────────────────────────────────────────────
-
 interface ProviderFormProps {
   providerKey: ProviderKey;
   cfg: ProviderConfig;
-  auth: import('../../types').AuthState;
+  auth: AuthState;
   isActive: boolean;
   onSetActive: () => void;
   onSave: (patch: Partial<ProviderConfig>) => void;
   onSaveKey: (key: string) => void;
+  onSaveOAuthCredential: (credential: {
+    accessToken: string;
+    oauthProvider?: 'openrouter';
+    userId?: string;
+  }) => void;
+  onSetAuthState: (patch: Partial<AuthState>) => void;
   onClearKey: () => void;
 }
 
@@ -138,45 +161,35 @@ type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
 function ProviderForm({
   providerKey, cfg, auth, isActive,
-  onSetActive, onSave, onSaveKey, onClearKey,
+  onSetActive, onSave, onSaveKey, onSaveOAuthCredential, onSetAuthState, onClearKey,
 }: ProviderFormProps) {
-  // Draft local state for fields that need buffering (base URL, typed model).
-  // Committed to the store (and localStorage) on blur / dropdown selection.
-  const [baseUrl, setBaseUrl]   = useState(cfg.baseUrl);
-  const [model, setModel]       = useState(cfg.model);
-  const [apiKey, setApiKey]     = useState('');
-  const [showKey, setShowKey]   = useState(false);
+  const [baseUrl, setBaseUrl] = useState(cfg.baseUrl);
+  const [model, setModel] = useState(cfg.model);
+  const [apiKey, setApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
 
-  // Pre-seed model list: prefer persisted knownModels, then static fallback.
-  const initialList = cfg.knownModels?.map(m => m.id)
-    ?? STATIC_MODELS[providerKey]
-    ?? [];
+  const initialList = cfg.knownModels?.map(m => m.id) ?? STATIC_MODELS[providerKey] ?? [];
   const [modelList, setModelList] = useState<string[]>(initialList);
-  const [loadState, setLoadState] = useState<LoadState>(
-    initialList.length > 0 ? 'loaded' : 'idle'
-  );
+  const [loadState, setLoadState] = useState<LoadState>(initialList.length > 0 ? 'loaded' : 'idle');
   const [loadError, setLoadError] = useState('');
 
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
-  const [testMsg, setTestMsg]   = useState('');
+  const [testMsg, setTestMsg] = useState('');
+  const [oauthStatus, setOAuthStatus] = useState<'idle' | 'authenticating' | 'ok' | 'error'>('idle');
 
   const needsKey = providerKey !== 'ollama';
-  const keySet   = !!auth._key;
+  const storedCredential = getAuthCredential(auth);
+  const keySet = !!storedCredential;
+  const supportsOpenRouterOAuth = providerKey === 'generic' && isOpenRouterBaseUrl(baseUrl);
 
-  // Auto-load on mount:
-  //  - ollama: always (no auth)
-  //  - anthropic: always (listModels() is a static local list, no key needed)
-  //  - openai / generic: only if key already saved
   useEffect(() => {
     const canLoad = providerKey === 'ollama'
       || providerKey === 'anthropic'
-      || !!auth._key;
+      || !!getAuthCredential(auth);
     if (!canLoad) return;
-    void fetchModels(cfg.baseUrl, auth._key ?? '');
+    void fetchModels(cfg.baseUrl, getAuthCredential(auth));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // ── Persist helpers — called immediately, no Save button required ──────────
 
   function commitBaseUrl(url: string) {
     onSave({ baseUrl: url, enabled: true });
@@ -186,8 +199,6 @@ function ProviderForm({
     onSave({ model: m, enabled: true });
   }
 
-  // ── Model list fetch ───────────────────────────────────────────────────────
-
   async function fetchModels(url: string, key: string): Promise<string[]> {
     setLoadState('loading');
     setLoadError('');
@@ -195,17 +206,20 @@ function ProviderForm({
       const adapter = createAdapter({ ...cfg, baseUrl: url }, key);
       let found = await adapter.listModels();
 
-      // OpenAI's /v1/models includes embeddings, audio, image models.
-      // Filter to chat-capable models for a cleaner picker.
       if (providerKey === 'openai') {
         const chat = found.filter(m => isOpenAIChatModel(m.id));
         if (chat.length > 0) found = chat;
       }
 
       const ids = found.map(m => m.id).sort();
+      const fallbackModel = model.trim() ? '' : chooseDefaultModel(providerKey, url, ids);
       setModelList(ids);
+      if (fallbackModel) setModel(fallbackModel);
       setLoadState('loaded');
-      onSave({ knownModels: found });
+      onSave({
+        knownModels: found,
+        ...(fallbackModel ? { model: fallbackModel, enabled: true } : {}),
+      });
       return ids;
     } catch (e) {
       setLoadState('error');
@@ -218,13 +232,40 @@ function ProviderForm({
     setTestStatus('testing');
     setTestMsg('');
     try {
-      const key = apiKey || auth._key || '';
+      const key = apiKey || getAuthCredential(auth);
       const ids = await fetchModels(baseUrl, key);
       setTestStatus('ok');
-      setTestMsg(`Connected — ${ids.length} model${ids.length !== 1 ? 's' : ''} available`);
+      setTestMsg(`Connected - ${ids.length} model${ids.length !== 1 ? 's' : ''} available`);
     } catch {
       setTestStatus('error');
       setTestMsg(loadError || 'Connection failed');
+    }
+  }
+
+  async function startOpenRouterOAuth() {
+    setOAuthStatus('authenticating');
+    setTestStatus('idle');
+    setTestMsg('');
+    onSetAuthState({ state: 'authenticating', error: undefined });
+
+    try {
+      const result = await signInWithOpenRouter();
+      onSave({ authMode: 'oauth', enabled: true });
+      onSaveOAuthCredential({
+        accessToken: result.key,
+        oauthProvider: 'openrouter',
+        userId: result.userId,
+      });
+      setOAuthStatus('ok');
+      const ids = await fetchModels(baseUrl, result.key);
+      setTestStatus('ok');
+      setTestMsg(`OpenRouter connected - ${ids.length} model${ids.length !== 1 ? 's' : ''} available`);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setOAuthStatus('error');
+      onSetAuthState({ state: 'error', error: message });
+      setTestStatus('error');
+      setTestMsg(message);
     }
   }
 
@@ -236,23 +277,21 @@ function ProviderForm({
   }
 
   const modelLabel = loadState === 'loading'
-    ? 'Model (loading…)'
+    ? 'Model (loading...)'
     : loadState === 'loaded' && modelList.length > 0
     ? `Model (${modelList.length} available)`
     : 'Model';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Active indicator */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         {isActive ? (
-          <Caption1 style={{ color: tokens.colorBrandForeground1, fontWeight: 600 }}>● Active provider</Caption1>
+          <Caption1 style={{ color: tokens.colorBrandForeground1, fontWeight: 600 }}>Active provider</Caption1>
         ) : (
           <Button size="small" appearance="subtle" onClick={onSetActive}>Set as active</Button>
         )}
       </div>
 
-      {/* Base URL — auto-saves on blur */}
       <Field label="Base URL">
         <Input
           value={baseUrl}
@@ -263,12 +302,11 @@ function ProviderForm({
         />
       </Field>
 
-      {/* Model — Combobox when list is available, Input fallback */}
       <Field label={modelLabel}>
         {loadState === 'loading' ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, height: 32 }}>
             <Spinner size="extra-small" />
-            <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>Fetching models…</Caption1>
+            <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>Fetching models...</Caption1>
           </div>
         ) : modelList.length > 0 ? (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -282,7 +320,7 @@ function ProviderForm({
               }}
               onChange={(e) => setModel(e.target.value)}
               onBlur={() => commitModel(model)}
-              placeholder="Select or type a model…"
+              placeholder="Select or type a model..."
               size="small"
               style={{ flex: 1, minWidth: 0 }}
               freeform
@@ -295,8 +333,8 @@ function ProviderForm({
               size="small"
               appearance="subtle"
               title="Refresh model list"
-              onClick={() => void fetchModels(baseUrl, auth._key ?? '')}
-            >↺</Button>
+              onClick={() => void fetchModels(baseUrl, getAuthCredential(auth))}
+            >Refresh</Button>
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -313,8 +351,8 @@ function ProviderForm({
               appearance="subtle"
               title="Fetch available models"
               disabled={needsKey && !keySet && !apiKey}
-              onClick={() => void fetchModels(baseUrl, apiKey || auth._key || '')}
-            >↺</Button>
+              onClick={() => void fetchModels(baseUrl, apiKey || getAuthCredential(auth))}
+            >Refresh</Button>
           </div>
         )}
         {loadState === 'error' && (
@@ -324,13 +362,25 @@ function ProviderForm({
         )}
       </Field>
 
-      {/* API Key */}
+      {supportsOpenRouterOAuth && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <Button
+            appearance="primary"
+            size="small"
+            disabled={oauthStatus === 'authenticating'}
+            onClick={() => void startOpenRouterOAuth()}
+          >
+            {oauthStatus === 'authenticating' ? 'Signing in...' : 'Sign in with OpenRouter'}
+          </Button>
+        </div>
+      )}
+
       {needsKey && (
-        <Field label="API Key">
+        <Field label={supportsOpenRouterOAuth ? 'API Key fallback' : 'API Key'}>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <Input
               type={showKey ? 'text' : 'password'}
-              placeholder={keySet ? auth.apiKeyMasked : 'Enter API key…'}
+              placeholder={keySet ? auth.apiKeyMasked : 'Enter API key...'}
               value={apiKey}
               onChange={(_, d) => setApiKey(d.value)}
               size="small"
@@ -346,7 +396,6 @@ function ProviderForm({
         </Field>
       )}
 
-      {/* Auth status */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <Label size="small" style={{ color: tokens.colorNeutralForeground3 }}>Status:</Label>
         <Caption1 style={{
@@ -354,15 +403,17 @@ function ProviderForm({
             ? tokens.colorPaletteGreenForeground1
             : auth.state === 'unauthenticated' && !needsKey
             ? tokens.colorPaletteGreenForeground1
+            : auth.state === 'error'
+            ? tokens.colorPaletteRedForeground1
             : tokens.colorNeutralForeground3,
         }}>
-          {auth.state === 'authenticated' ? '✓ authenticated'
-            : auth.state === 'unauthenticated' && !needsKey ? '✓ no auth needed'
+          {auth.state === 'authenticated' ? 'authenticated'
+            : auth.state === 'unauthenticated' && !needsKey ? 'no auth needed'
+            : auth.error ? `${auth.state}: ${auth.error}`
             : auth.state}
         </Caption1>
       </div>
 
-      {/* Actions — base URL and model auto-save; key requires explicit action */}
       <div style={{ display: 'flex', gap: 8 }}>
         {needsKey && apiKey && (
           <Button appearance="primary" size="small" onClick={saveKey}>Save key</Button>
@@ -373,11 +424,10 @@ function ProviderForm({
           disabled={testStatus === 'testing'}
           onClick={() => void test()}
         >
-          {testStatus === 'testing' ? 'Testing…' : 'Test connection'}
+          {testStatus === 'testing' ? 'Testing...' : 'Test connection'}
         </Button>
       </div>
 
-      {/* Test result */}
       {testStatus !== 'idle' && testStatus !== 'testing' && (
         <MessageBar intent={testStatus === 'ok' ? 'success' : 'error'}>
           <MessageBarBody>

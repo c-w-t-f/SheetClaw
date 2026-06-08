@@ -47,6 +47,7 @@ export default function ChatPanel() {
   const providers = useStore(s => s.providers);
   const appConfig = useStore(s => s.appConfig);
   const authStates = useStore(s => s.authStates);
+  const activeProviderReady = useStore(s => s.isProviderReady(s.appConfig.activeProvider));
 
   const isRunning = session ? STATUS_RUNNING.has(session.status) : false;
   const awaitingConfirm = session?.status === 'awaiting_confirmation';
@@ -65,17 +66,14 @@ export default function ChatPanel() {
   }, [messages.length]);
 
   async function send() {
-    if (!input.trim() || isRunning) return;
+    if (!input.trim() || isRunning || !providerReady) return;
     const text = input.trim();
     setInput('');
 
     const provider = appConfig.activeProvider;
     const cfg = providers[provider];
     const authState = authStates[provider];
-
-    const apiKey = authState._key ?? '';
-
-    const client = createAdapter(cfg, apiKey);
+    const client = createAdapter(cfg, authState);
     const scope = { workbookId: getLayer().registry.getActiveId() ?? 'host' };
 
     try {
@@ -100,7 +98,15 @@ export default function ChatPanel() {
     }
   }
 
-  const providerReady = activeProvider?.enabled;
+  const modelReady = !!activeProvider?.model.trim();
+  const providerReady = !!activeProvider?.enabled && activeProviderReady && modelReady;
+  const providerWarning = !activeProvider?.enabled
+    ? 'No provider enabled. Configure one in Settings.'
+    : !activeProviderReady
+    ? 'Active provider is not authenticated. Configure auth in Settings.'
+    : !modelReady
+    ? 'Select a model in Settings before chatting.'
+    : '';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 12, gap: 8 }}>
@@ -112,7 +118,7 @@ export default function ChatPanel() {
 
       {!providerReady && (
         <MessageBar intent="warning">
-          <MessageBarBody>No provider enabled. Configure one in Settings.</MessageBarBody>
+          <MessageBarBody>{providerWarning}</MessageBarBody>
         </MessageBar>
       )}
 

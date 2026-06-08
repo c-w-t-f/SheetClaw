@@ -19,6 +19,8 @@ export default defineConfig(async () => {
       rollupOptions: {
         input: {
           taskpane: 'taskpane.html',
+          oauthStart: 'oauth-start.html',
+          oauthCallback: 'oauth-callback.html',
         },
       },
       outDir: 'dist',

@@ -44,7 +44,14 @@ export interface AuthState {
     | 'validating'
     | 'error';
   apiKeyMasked?: string;
+  authMode?: 'apikey' | 'oauth' | 'none';
+  oauthProvider?: 'openrouter';
+  accessToken?: string;
+  refreshToken?: string;
+  tokenType?: string;
+  expiresAt?: string;
+  userId?: string;
   error?: string;
-  /** Raw key — Phase 8 will move this to OS vault. Personal-use only. */
+  /** Raw key - Phase 8 will move this to OS vault. Personal-use only. */
   _key?: string;
 }
