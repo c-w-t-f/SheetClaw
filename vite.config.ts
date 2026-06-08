@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { getHttpsServerOptions } from 'office-addin-dev-certs';
@@ -21,6 +22,10 @@ export default defineConfig(async () => {
         },
       },
       outDir: 'dist',
+    },
+    test: {
+      environment: 'node',
+      include: ['src/**/*.test.ts'],
     },
   };
 });

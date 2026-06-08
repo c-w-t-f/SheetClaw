@@ -9,23 +9,29 @@
     "install-certs": "office-addin-dev-certs install",
     "uninstall-certs": "office-addin-dev-certs uninstall",
     "validate-manifest": "office-addin-manifest validate manifest.xml",
-    "sideload": "office-addin-debugging start manifest.xml desktop --app excel"
+    "sideload": "office-addin-debugging start manifest.xml desktop --app excel",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@fluentui/react-components": "^9.74.1",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "ulid": "^3.0.2",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@types/office-js": "^1.0.592",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.0.0",
-    "office-addin-dev-certs": "^2.0.9",
+    "@vitest/coverage-v8": "^4.1.8",
     "office-addin-debugging": "^6.1.1",
+    "office-addin-dev-certs": "^2.0.9",
     "office-addin-manifest": "^2.1.5",
     "typescript": "^5.0.0",
-    "vite": "^5.0.0"
+    "vite": "^5.0.0",
+    "vitest": "^4.1.8"
   },
   "allowScripts": {
     "esbuild@0.21.5": true
