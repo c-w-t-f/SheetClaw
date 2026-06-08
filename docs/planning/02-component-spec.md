@@ -49,11 +49,14 @@ Type names referenced here (`Message`, `ToolCall`, `UsageRecord`, etc.) are defi
 
 ### 2.1.5 Generic OpenAI-compatible adapter
 
-- **Responsibility**: Implement `LLMClient` against any user-supplied OpenAI-compatible base URL (OpenRouter, Groq, LM Studio, etc.).
+- **Responsibility**: Implement `LLMClient` against any user-supplied OpenAI-compatible base URL (OpenRouter, Groq, LM Studio, DeepSeek, etc.).
 - **Interface specifics**: identical wire format to OpenAI adapter but with configurable base URL, key header name, and optional extra headers; `listModels()` via `/models` (graceful fallback to manual entry).
 - **Internal state**: none.
 - **Dependencies**: AuthManager (key), ProviderConfig (base URL, headers).
 - **Error states**: CORS failure→`NetworkError("endpoint blocked browser request")` with hint to enable sidecar proxy; otherwise as OpenAI adapter.
+- **Named presets** (pre-filled in SettingsPanel, user still supplies their own API key):
+  - OpenRouter: base URL `https://openrouter.ai/api/v1`, model list via `/models`, `access-control-allow-origin: *` (CORS confirmed). Primary OAuth/PKCE candidate for Phase 8 (see Doc 5 §5.2).
+  - DeepSeek: base URL `https://api.deepseek.com/v1`, models `deepseek-chat` / `deepseek-reasoner`, CORS confirmed (`access-control-allow-origin: <origin>` echo).
 
 ---
 

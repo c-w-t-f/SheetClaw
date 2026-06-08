@@ -5,13 +5,15 @@
 | Provider | OAuth/PKCE | API key | Notes |
 |----------|-----------|---------|-------|
 | Ollama | — | — | Local, no auth. |
-| OpenAI | Maybe **[D4]** | ✓ | Consumer OAuth/PKCE availability for arbitrary public clients is **unconfirmed**; API key is the reliable path. Verify in spike before building OAuth UI. |
-| Anthropic | — (API key) | ✓ | Direct browser calls supported via `anthropic-dangerous-direct-browser-access`. |
-| Generic | varies | ✓ | OpenRouter/Groq/etc. use API keys; OpenRouter also offers OAuth/PKCE for key provisioning (optional). |
+| OpenAI | No **[D4 resolved]** | ✓ | `auth.openai.com` OIDC has PKCE but scopes are user-identity only — no API-access scopes, no public client for API provisioning. **API-key-only.** |
+| Anthropic | — (API key) | ✓ | Direct browser calls supported via `anthropic-dangerous-direct-browser-access: true`. CORS confirmed. |
+| OpenRouter | Optional (Phase 8) | ✓ | `https://openrouter.ai/api/v1`. `access-control-allow-origin: *` (CORS confirmed). OAuth/PKCE key provisioning available — primary target for §5.2. Uses Generic adapter. |
+| DeepSeek | — (API key) | ✓ | `https://api.deepseek.com/v1` (OpenAI-compatible). CORS confirmed (`access-control-allow-origin: <origin>` echo). Uses Generic adapter. |
+| Generic | varies | ✓ | Groq, LM Studio, self-hosted, etc. use API keys. CORS varies by endpoint. |
 
-> **[DECISION REQUIRED D4]:** Confirm whether a usable PKCE public client exists for OpenAI consumer accounts. If not, ship **API-key-only** for all providers and treat §5.2 as a forward-looking spec applied to OpenRouter-style PKCE.
+> **[D4 resolved]:** No usable PKCE for OpenAI API access. Ship API-key-only for all providers in Phase 1–7. §5.2 OAuth/PKCE applies to **OpenRouter only** in Phase 8.
 
-## 5.2 OAuth 2.0 + PKCE flow (generic, applied to OpenAI / OpenRouter)
+## 5.2 OAuth 2.0 + PKCE flow (OpenRouter)
 
 Actors: **task pane** (public client), **provider authorization server**, optional **sidecar** (loopback HTTPS) for token exchange [D1].
 

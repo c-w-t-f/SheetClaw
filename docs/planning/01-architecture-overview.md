@@ -55,6 +55,8 @@
    │  • Ollama         http://localhost:11434  (loopback)        │
    │  • OpenAI         https://api.openai.com                    │
    │  • Anthropic      https://api.anthropic.com                 │
+   │  • OpenRouter     https://openrouter.ai/api/v1  (Generic)  │
+   │  • DeepSeek       https://api.deepseek.com/v1  (Generic)   │
    │  • Generic        https://<any-openai-compatible-base-url>  │
    │                                                             │
    │  OPTIONAL Node sidecar (loopback HTTPS) — see §1.5 [D1]     │
