@@ -15,9 +15,9 @@ project-level progress.
 
 ## Current position
 
-> **Next action:** Retry G2 chat verification in Excel WebView2 after OpenRouter model auto-selection fix; complete a tool call using the stored OAuth credential.
-> **Active phase:** Phase 8 - `in progress`
-> **Last updated:** 2026-06-08 by Codex (Generic tab expanded with DeepSeek/Groq/Mistral/Together/Kimi/GLM/Qwen/Llama; 78/78 tests pass)
+> **Next action:** Begin Phase 9 polish + acceptance pass.
+> **Active phase:** Phase 9 - `in progress`
+> **Last updated:** 2026-06-08 by Codex (Phase 8 complete; OpenRouter OAuth confirmed working in Excel WebView2; 78/78 tests pass)
 
 ---
 
@@ -33,8 +33,8 @@ project-level progress.
 | 5 - Loop + context + snapshot + write tools + gate | done | 2026-06-08 | AgentLoop + ContextBuilder + SnapshotManager + write_range + clear_range + ChatPanel; 46/46 tests, tsc clean |
 | 6 - Usage + pricing + dashboard | done | 2026-06-08 | Bundled pricing.json (D7 resolved), findPricing/computeCost, 30-day rolling storage, UsageDashboard + Footer + tab nav, loop wired to recordUsage; 56/56 tests |
 | 7 - Charts + pivots | done | 2026-06-08 | 5 chart tools + 5 pivot tools; ToolUnsupportedError; captureStructural snapshots; ExcelApi 1.8+ capability gating; 73/73 tests, tsc clean |
-| 8 - Auth / OAuth (+ optional sidecar) | in progress | - | OpenRouter PKCE Office Dialog flow, same-origin localhost start/callback pages, OAuth credential storage, adapter auth resolution; G2 manual Excel verify pending |
-| 9 - Polish + acceptance | not started | - | - |
+| 8 - Auth / OAuth (+ optional sidecar) | done | 2026-06-08 | OpenRouter PKCE Office Dialog flow, same-origin localhost start/callback pages, OAuth credential storage, adapter auth resolution, OpenRouter model auto-selection, Settings provider consolidation/polish, expanded Generic provider presets; G2 confirmed in Excel WebView2 |
+| 9 - Polish + acceptance | in progress | - | - |
 
 ## Gate log
 
@@ -42,7 +42,7 @@ project-level progress.
 |------|-------|--------|------|-------|
 | G0 - Load & self-test | 1 | **PASS** | 2026-06-08 | Pane sideloaded over https://localhost:3000; cert ok; loopback ok; Ollama not running, expected and not a blocker |
 | G1 - Tool-calling harness | 3 | **PASS** | 2026-06-08 | Ollama llama3.1:latest ok; OpenRouter qwen/qwen3.7-max ok; OpenRouter duplicate-finish_reason bug found and fixed in openai.ts |
-| G2 - OAuth popup in Edge WebView | 8 | pending | - | OAuth dialog/callback now completes in Excel WebView2. First chat attempt hit OpenRouter HTTP 404 because Generic/OpenRouter had no selected model. Config migration and auto-select now choose `openai/gpt-4o-mini`; chat/tool-call retry pending. |
+| G2 - OAuth popup in Edge WebView | 8 | **PASS** | 2026-06-08 | User confirmed OpenRouter OAuth works in Excel WebView2. OAuth dialog/callback completes and the credential lands in the store; the earlier OpenRouter HTTP 404 was fixed with stored-config migration and model auto-select (`openai/gpt-4o-mini`). |
 | G3 - Acceptance | 9 | pending | - | - |
 
 ## Decision log
@@ -52,7 +52,7 @@ project-level progress.
 | D1 | Node sidecar yes/no | **No sidecar** for Phase 1-8 MVP | Codex / 2026-06-08 | Phases 1-7 direct browser calls remain. Phase 8 uses the existing trusted Vite HTTPS origin as the loopback callback listener (`/oauth-callback.html`) and exchanges the OpenRouter code directly from the pane. Revisit only if Excel WebView2 blocks popup/callback or OpenRouter exchange CORS fails during G2. |
 | D2 | State library | undecided (Zustand recommended) | - | - |
 | D3 | Secret storage | undecided | - | - |
-| D4 | OpenAI OAuth availability | **No - API-key-only** | Claude / 2026-06-08 | `auth.openai.com` OIDC exists (PKCE S256 supported) but scopes are user-identity only, no API-access scopes. No public client ID for API provisioning. |
+| D4 | OpenAI OAuth availability | **No - API-key-only** | Claude/Codex / 2026-06-08 | `auth.openai.com` OIDC exists (PKCE S256 supported) but scopes are user-identity only, no API-access scopes. Rechecked official OpenAI docs: OpenAI API authentication uses API keys; GPT Actions OAuth docs do not issue OpenAI API bearer tokens for this add-in. |
 | D5 | Pivot scope | **MVP subset** | Claude / 2026-06-08 | Excel 16.0.20026 (M365 current, ExcelApi 1.17+) supports full pivot API; calculated fields permanently unavailable via Office.js. Ship list/get/create/add_field/refresh; gate remove/delete/advanced behind capability detection. |
 | D6 | Confirmation granularity | undecided | - | - |
 | D7 | Pricing source | **Bundled static pricing.json** | Claude / 2026-06-08 | Personal use; `updatedAt` visible in Settings; user can edit rates in-app later. |
@@ -63,6 +63,8 @@ project-level progress.
 > One line per working session: date - phase touched - outcome / handoff.
 
 - 2026-06-08 - Phase 8 - Expanded visible `Generic` tab into API-key provider hub: OpenAI, Anthropic, DeepSeek, Groq, Mistral, Together AI, Kimi, GLM, Qwen, and Llama. Added separate provider config/auth keys and routed OpenAI-compatible providers through OpenAIAdapter. 78/78 tests, build clean.
+- 2026-06-08 - Phase 8 - G2 PASS: user confirmed OpenRouter OAuth works from Excel WebView2 after the Office Dialog callback flow and OpenRouter model auto-selection fixes. Phase 8 complete; Phase 9 active.
+- 2026-06-08 - Phase 8 - Settings polish: committed chat composer bottom anchoring (`867ec46`), consolidated provider tabs (`ace8558`), renamed/reordered tabs to `Ollama | OpenRouter | Generic`, and made `Set as active` a full-width button above the provider selector.
 - 2026-06-08 - Phase 8 - Consolidated OpenAI and Anthropic Settings into one `API Keys` tab with an in-tab provider dropdown; provider configs/auth remain separate. 78/78 tests, build clean.
 - 2026-06-08 - Phase 8 - OAuth completed in Excel, but chat returned OpenRouter HTTP 404 due to empty Generic model. Added OpenRouter default model + stored-config migration, auto-select preferred model after model fetch, and ChatPanel model-ready guard. 78/78 tests, build clean; G2 chat retry pending.
 - 2026-06-08 - Phase 8 - Fixed Excel WebView2 popup blocker by replacing raw `window.open()` primary path with Office Dialog API; added `/oauth-start.html`, Office.js `messageParent` callback, and retained popup fallback for browser/dev. 78/78 tests, build clean; G2 retry pending.
