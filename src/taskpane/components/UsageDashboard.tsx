@@ -82,7 +82,15 @@ export default function UsageDashboard() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 12, overflowY: 'auto', height: '100%' }}>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 12,
+      padding: 12,
+      overflowY: 'auto',
+      height: '100%',
+      boxSizing: 'border-box',
+    }}>
       {/* Controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <Body1Strong>Usage</Body1Strong>
@@ -132,8 +140,24 @@ export default function UsageDashboard() {
       )}
 
       {/* Actions */}
-      <div style={{ marginTop: 'auto', paddingTop: 8, borderTop: `1px solid ${tokens.colorNeutralStroke1}` }}>
-        <Button size="small" appearance="subtle" style={{ color: tokens.colorPaletteRedForeground1 }} onClick={resetHistory}>
+      <div style={{
+        marginTop: 'auto',
+        paddingTop: 10,
+        borderTop: `1px solid ${tokens.colorNeutralStroke1}`,
+        display: 'flex',
+        justifyContent: 'flex-start',
+        flexShrink: 0,
+      }}>
+        <Button
+          size="small"
+          appearance="secondary"
+          style={{
+            color: tokens.colorPaletteRedForeground1,
+            borderColor: tokens.colorPaletteRedBorder2,
+            minWidth: 96,
+          }}
+          onClick={resetHistory}
+        >
           Reset history
         </Button>
       </div>
