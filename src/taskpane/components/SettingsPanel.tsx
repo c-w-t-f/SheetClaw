@@ -10,6 +10,7 @@ import {
   MessageBar,
   MessageBarBody,
   Option,
+  Select,
   Spinner,
   Switch,
   Tab,
@@ -23,11 +24,18 @@ import type { AuthState, ProviderConfig, ProviderKey } from '../../types';
 import { getAuthCredential } from '../../auth/credentials';
 import { signInWithOpenRouter } from '../../auth/oauthFlow';
 
-const PROVIDERS: { key: ProviderKey; label: string }[] = [
+type ApiKeyProvider = 'openai' | 'anthropic';
+type SettingsTabKey = 'ollama' | 'apiKeys' | 'generic';
+
+const SETTINGS_TABS: { key: SettingsTabKey; label: string }[] = [
   { key: 'ollama', label: 'Ollama' },
+  { key: 'generic', label: 'OpenRouter' },
+  { key: 'apiKeys', label: 'Generic' },
+];
+
+const API_KEY_PROVIDERS: { key: ApiKeyProvider; label: string }[] = [
   { key: 'openai', label: 'OpenAI' },
   { key: 'anthropic', label: 'Anthropic' },
-  { key: 'generic', label: 'Generic' },
 ];
 
 const STATIC_MODELS: Partial<Record<ProviderKey, string[]>> = {
@@ -73,6 +81,15 @@ function chooseDefaultModel(providerKey: ProviderKey, baseUrl: string, ids: stri
   return ids[0] ?? '';
 }
 
+function providerToTab(provider: ProviderKey): SettingsTabKey {
+  if (provider === 'openai' || provider === 'anthropic') return 'apiKeys';
+  return provider;
+}
+
+function isApiKeyProvider(provider: ProviderKey): provider is ApiKeyProvider {
+  return provider === 'openai' || provider === 'anthropic';
+}
+
 export default function SettingsPanel() {
   const providers = useStore(s => s.providers);
   const appConfig = useStore(s => s.appConfig);
@@ -85,20 +102,42 @@ export default function SettingsPanel() {
   const setAuthState = useStore(s => s.setAuthState);
   const clearApiKey = useStore(s => s.clearApiKey);
 
-  const [selectedTab, setSelectedTab] = useState<ProviderKey>(appConfig.activeProvider);
+  const [selectedTab, setSelectedTab] = useState<SettingsTabKey>(providerToTab(appConfig.activeProvider));
+  const [selectedApiProvider, setSelectedApiProvider] = useState<ApiKeyProvider>(
+    isApiKeyProvider(appConfig.activeProvider) ? appConfig.activeProvider : 'openai'
+  );
+
+  function renderProviderForm(providerKey: ProviderKey, key: string = providerKey) {
+    return (
+      <ProviderForm
+        key={key}
+        providerKey={providerKey}
+        cfg={providers[providerKey]}
+        auth={authStates[providerKey]}
+        showActiveButton={selectedTab !== 'apiKeys'}
+        isActive={appConfig.activeProvider === providerKey}
+        onSetActive={() => setActiveProvider(providerKey)}
+        onSave={(patch) => setProvider(providerKey, patch)}
+        onSaveKey={(apiKey) => saveApiKey(providerKey, apiKey)}
+        onSaveOAuthCredential={(credential) => saveOAuthCredential(providerKey, credential)}
+        onSetAuthState={(patch) => setAuthState(providerKey, patch)}
+        onClearKey={() => clearApiKey(providerKey)}
+      />
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <TabList
         selectedValue={selectedTab}
-        onTabSelect={(_, d: SelectTabData) => setSelectedTab(d.value as ProviderKey)}
+        onTabSelect={(_, d: SelectTabData) => setSelectedTab(d.value as SettingsTabKey)}
         size="small"
         style={{ flexShrink: 0, paddingLeft: 4, borderBottom: `1px solid ${tokens.colorNeutralStroke1}` }}
       >
-        {PROVIDERS.map(p => (
+        {SETTINGS_TABS.map(p => (
           <Tab key={p.key} value={p.key}>
             {p.label}
-            {appConfig.activeProvider === p.key && (
+            {providerToTab(appConfig.activeProvider) === p.key && (
               <span style={{ marginLeft: 4, color: tokens.colorBrandForeground1, fontSize: 10 }}>*</span>
             )}
           </Tab>
@@ -106,19 +145,28 @@ export default function SettingsPanel() {
       </TabList>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-        <ProviderForm
-          key={selectedTab}
-          providerKey={selectedTab}
-          cfg={providers[selectedTab]}
-          auth={authStates[selectedTab]}
-          isActive={appConfig.activeProvider === selectedTab}
-          onSetActive={() => setActiveProvider(selectedTab)}
-          onSave={(patch) => setProvider(selectedTab, patch)}
-          onSaveKey={(key) => saveApiKey(selectedTab, key)}
-          onSaveOAuthCredential={(credential) => saveOAuthCredential(selectedTab, credential)}
-          onSetAuthState={(patch) => setAuthState(selectedTab, patch)}
-          onClearKey={() => clearApiKey(selectedTab)}
-        />
+        {selectedTab === 'apiKeys' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <ActiveProviderButton
+              isActive={appConfig.activeProvider === selectedApiProvider}
+              onSetActive={() => setActiveProvider(selectedApiProvider)}
+            />
+            <Field label="Provider">
+              <Select
+                value={selectedApiProvider}
+                onChange={(_, d) => setSelectedApiProvider(d.value as ApiKeyProvider)}
+                size="small"
+              >
+                {API_KEY_PROVIDERS.map(p => (
+                  <option key={p.key} value={p.key}>{p.label}</option>
+                ))}
+              </Select>
+            </Field>
+            {renderProviderForm(selectedApiProvider, `api-${selectedApiProvider}`)}
+          </div>
+        ) : (
+          renderProviderForm(selectedTab)
+        )}
       </div>
 
       <div style={{
@@ -144,6 +192,7 @@ interface ProviderFormProps {
   providerKey: ProviderKey;
   cfg: ProviderConfig;
   auth: AuthState;
+  showActiveButton?: boolean;
   isActive: boolean;
   onSetActive: () => void;
   onSave: (patch: Partial<ProviderConfig>) => void;
@@ -161,6 +210,7 @@ type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
 function ProviderForm({
   providerKey, cfg, auth, isActive,
+  showActiveButton = true,
   onSetActive, onSave, onSaveKey, onSaveOAuthCredential, onSetAuthState, onClearKey,
 }: ProviderFormProps) {
   const [baseUrl, setBaseUrl] = useState(cfg.baseUrl);
@@ -284,13 +334,9 @@ function ProviderForm({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {isActive ? (
-          <Caption1 style={{ color: tokens.colorBrandForeground1, fontWeight: 600 }}>Active provider</Caption1>
-        ) : (
-          <Button size="small" appearance="subtle" onClick={onSetActive}>Set as active</Button>
-        )}
-      </div>
+      {showActiveButton && (
+        <ActiveProviderButton isActive={isActive} onSetActive={onSetActive} />
+      )}
 
       <Field label="Base URL">
         <Input
@@ -436,5 +482,25 @@ function ProviderForm({
         </MessageBar>
       )}
     </div>
+  );
+}
+
+function ActiveProviderButton({
+  isActive,
+  onSetActive,
+}: {
+  isActive: boolean;
+  onSetActive: () => void;
+}) {
+  return (
+    <Button
+      size="small"
+      appearance={isActive ? 'primary' : 'secondary'}
+      onClick={onSetActive}
+      disabled={isActive}
+      style={{ width: '100%' }}
+    >
+      {isActive ? 'Active provider' : 'Set as active'}
+    </Button>
   );
 }

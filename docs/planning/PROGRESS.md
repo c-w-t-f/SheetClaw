@@ -17,7 +17,7 @@ project-level progress.
 
 > **Next action:** Retry G2 chat verification in Excel WebView2 after OpenRouter model auto-selection fix; complete a tool call using the stored OAuth credential.
 > **Active phase:** Phase 8 - `in progress`
-> **Last updated:** 2026-06-08 by Codex (OAuth completes; OpenRouter empty-model 404 fixed; G2 chat retry pending; 78/78 tests pass)
+> **Last updated:** 2026-06-08 by Codex (Settings consolidated OpenAI/Anthropic into one API Keys tab; 78/78 tests pass)
 
 ---
 
@@ -62,6 +62,7 @@ project-level progress.
 
 > One line per working session: date - phase touched - outcome / handoff.
 
+- 2026-06-08 - Phase 8 - Consolidated OpenAI and Anthropic Settings into one `API Keys` tab with an in-tab provider dropdown; provider configs/auth remain separate. 78/78 tests, build clean.
 - 2026-06-08 - Phase 8 - OAuth completed in Excel, but chat returned OpenRouter HTTP 404 due to empty Generic model. Added OpenRouter default model + stored-config migration, auto-select preferred model after model fetch, and ChatPanel model-ready guard. 78/78 tests, build clean; G2 chat retry pending.
 - 2026-06-08 - Phase 8 - Fixed Excel WebView2 popup blocker by replacing raw `window.open()` primary path with Office Dialog API; added `/oauth-start.html`, Office.js `messageParent` callback, and retained popup fallback for browser/dev. 78/78 tests, build clean; G2 retry pending.
 - 2026-06-08 - Phase 8 - OpenRouter PKCE OAuth implementation landed: `src/auth` flow helpers + callback page, OAuth credential fields/storage, Settings sign-in button, adapter factory consumes AuthState; 77/77 tests, build clean. G2 manual Excel WebView2 authorization still pending.
