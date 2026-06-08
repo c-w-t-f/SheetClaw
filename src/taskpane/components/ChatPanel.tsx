@@ -8,6 +8,7 @@ import {
   MessageBarActions,
   MessageBarBody,
   Spinner,
+  Switch,
   Textarea,
   tokens,
 } from '@fluentui/react-components';
@@ -47,7 +48,7 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => v
   const [textareaHeight, setTextareaHeight] = useState(32);
 
   useEffect(() => {
-    const el = textareaRef.current?.tagName === 'TEXTAREA' 
+    const el = textareaRef.current?.tagName === 'TEXTAREA'
       ? (textareaRef.current as HTMLTextAreaElement)
       : (textareaRef.current as HTMLSpanElement)?.querySelector('textarea');
     if (el) {
@@ -55,10 +56,10 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => v
       el.style.height = '0px';
       el.style.minHeight = '0px';
       const scrollHeight = el.scrollHeight;
-      
+
       // Add a small buffer for the wrapper's padding/border (typically ~10-12px)
       setTextareaHeight(Math.min(Math.max(scrollHeight + 12, 32), 200));
-      
+
       el.style.height = '100%';
       el.style.minHeight = prevMin;
     }
@@ -68,6 +69,7 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => v
   const messages = useStore(s => s.messages);
   const providers = useStore(s => s.providers);
   const appConfig = useStore(s => s.appConfig);
+  const setAppConfig = useStore(s => s.setAppConfig);
   const authStates = useStore(s => s.authStates);
   const activeProviderReady = useStore(s => s.isProviderReady(s.appConfig.activeProvider));
 
@@ -79,10 +81,10 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => v
   const providerWarning = !activeProvider?.enabled
     ? 'No provider enabled. Configure one in Settings.'
     : !activeProviderReady
-    ? 'Active provider is not authenticated. Configure auth in Settings.'
-    : !modelReady
-    ? 'Select a model in Settings before chatting.'
-    : '';
+      ? 'Active provider is not authenticated. Configure auth in Settings.'
+      : !modelReady
+        ? 'Select a model in Settings before chatting.'
+        : '';
 
   useEffect(() => {
     getTaskpaneWorkbookLayer().registry.refresh().catch(e => {
@@ -206,11 +208,10 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => v
       )}
 
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1fr) 36px',
-        gap: 6,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 4,
         flexShrink: 0,
-        alignItems: 'flex-end',
       }}>
         <Textarea
           ref={textareaRef as any}
@@ -228,30 +229,42 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => v
           disabled={isRunning || awaitingConfirm || !providerReady}
           resize="none"
         />
-        {isRunning
-          ? (
-            <Button
-              appearance="secondary"
-              onClick={stop}
-              style={composerActionStyle}
-              aria-label="Stop"
-              title="Stop"
-            >
-              Stop
-            </Button>
-          )
-          : (
-            <Button
-              appearance="primary"
-              onClick={() => void send()}
-              disabled={!input.trim() || !providerReady}
-              style={composerActionStyle}
-              aria-label="Send"
-              title="Send"
-              icon={<SendIcon />}
-            />
-          )
-        }
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+        }}>
+          <Switch
+            label="Auto-approve"
+            checked={appConfig.autoApproveSession}
+            onChange={(_, d) => setAppConfig({ autoApproveSession: d.checked })}
+          />
+          {isRunning
+            ? (
+              <Button
+                appearance="secondary"
+                onClick={stop}
+                style={{ ...composerActionStyle, width: 56, minWidth: 56 }}
+                aria-label="Stop"
+                title="Stop"
+              >
+                Stop
+              </Button>
+            )
+            : (
+              <Button
+                appearance="primary"
+                onClick={() => void send()}
+                disabled={!input.trim() || !providerReady}
+                style={composerActionStyle}
+                aria-label="Send"
+                title="Send"
+                icon={<SendIcon />}
+              />
+            )
+          }
+        </div>
       </div>
     </div>
   );

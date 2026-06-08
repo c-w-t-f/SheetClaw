@@ -307,8 +307,9 @@ export class AgentLoop {
       return;
     }
 
-    // Pause until user decides
-    const decision = await this.waitForConfirmation(signal);
+    const decision = useStore.getState().appConfig.autoApproveSession
+      ? 'apply'
+      : await this.waitForConfirmation(signal);
     useStore.getState().updateSession({ status: 'executing_tool', pendingChange: undefined });
 
     if (decision === 'cancel') {
