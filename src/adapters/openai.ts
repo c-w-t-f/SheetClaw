@@ -176,6 +176,8 @@ export class OpenAIAdapter implements LLMClient {
 
     // Index-keyed accumulator for reassembling fragmented tool-call arguments
     const toolCallAccum: Record<number, { id: string; name: string; argsBuf: string }> = {};
+    // Guard against providers (e.g. OpenRouter) that send finish_reason on multiple chunks
+    let doneSent = false;
 
     try {
       for await (const raw of parseSSE(res.body)) {
@@ -217,13 +219,12 @@ export class OpenAIAdapter implements LLMClient {
             }
           }
 
-          // Finish
-          if (choice.finish_reason) {
-            // Emit tool-call-end for each accumulated call before done
+          // Finish — guard against providers that send finish_reason on multiple chunks
+          if (choice.finish_reason && !doneSent) {
+            doneSent = true;
             for (const idx of Object.keys(toolCallAccum).map(Number)) {
               yield { type: 'tool-call-end', index: idx };
             }
-
             const reason = choice.finish_reason as 'stop' | 'tool_calls' | 'length';
             yield { type: 'done', finishReason: reason };
           }
