@@ -5,13 +5,21 @@ not a script. The execution spine is [`10-build-sequencing.md`](10-build-sequenc
 through it **one phase at a time**, generating a phase-scoped TODO list as you enter each phase
 and stopping at each phase's verify step / gate.
 
+**Where are we right now?** → [`PROGRESS.md`](PROGRESS.md). That file is the durable, cross-session
+source of truth for project progress. **Read it first every session** to learn the active phase,
+decisions already made, and gates already passed. The phase-scoped TODO lists are ephemeral
+(in-session); PROGRESS.md is what survives between sessions.
+
 ## The loop
 
 ```
-pick phase → read phase + its primary refs → build a TODO for THAT phase only →
-implement → verify step → check gate (if any) → confirm → next phase
+read PROGRESS.md → pick the active phase → read phase + its primary refs →
+build a TODO for THAT phase only → implement → verify step → check gate (if any) →
+UPDATE PROGRESS.md → confirm → next phase
 ```
 
+- **Always start by reading PROGRESS.md; always end a phase by updating it** (status, gate result,
+  any decision made, a session-log line).
 - Don't generate one giant upfront TODO — it goes stale. Build the task list per phase.
 - Don't cross a gate (G0–G3) until it passes. G1 (tool-calling harness) and G2 (OAuth popup in
   Edge WebView) can force design changes.
@@ -29,9 +37,9 @@ implement → verify step → check gate (if any) → confirm → next phase
 >   sideloaded). Write throwaway probe code if needed, but keep it isolated.
 > - Record a written yes/no with the evidence behind it.
 >
-> When done, give me a findings summary and your **recommendation for each of D1/D4/D5/D8**, then
-> **stop and ask me to confirm** before starting Phase 1. Do not assume the answers or begin
-> Phase 1 scaffolding yet.
+> When done, record your findings in `PROGRESS.md` (Decision log + session-log line), give me a
+> findings summary and your **recommendation for each of D1/D4/D5/D8**, then **stop and ask me to
+> confirm** before starting Phase 1. Do not assume the answers or begin Phase 1 scaffolding yet.
 
 **Expect a handoff:** spikes 0.2 (OpenAI OAuth) and 0.3 (browser CORS reach) can only be fully
 confirmed with real authenticated calls, which need your API keys. The model can get partway on
@@ -39,9 +47,10 @@ docs/static analysis but will likely hand live-call verification back to you.
 
 ## Phase N kickoff prompt (N ≥ 1 — actual build phases)
 
-> Read `docs/planning/10-build-sequencing.md` Phase N and its primary refs (see §10.4). Build a
-> task list for **Phase N only**, then implement it. Stop at the phase's **verify** step and walk
-> me through gate **G#** (if the phase has one) before continuing.
+> Read `docs/planning/PROGRESS.md`, then `10-build-sequencing.md` Phase N and its primary refs
+> (see §10.4). Build a task list for **Phase N only**, then implement it. Stop at the phase's
+> **verify** step, update `PROGRESS.md` (phase status, gate result, session-log line), and walk me
+> through gate **G#** (if the phase has one) before continuing.
 
 Differences from the Phase 0 prompt: this one asks for a **phase-scoped TODO list** and stops at
 the **gate**, not at a decision.
