@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import {
-  Body1Strong,
   Button,
   Caption1,
   Combobox,
@@ -12,7 +11,6 @@ import {
   Option,
   Select,
   Spinner,
-  Switch,
   Tab,
   TabList,
   tokens,
@@ -134,7 +132,6 @@ export default function SettingsPanel() {
   const authStates = useStore(s => s.authStates);
   const setProvider = useStore(s => s.setProvider);
   const setActiveProvider = useStore(s => s.setActiveProvider);
-  const setAppConfig = useStore(s => s.setAppConfig);
   const saveApiKey = useStore(s => s.saveApiKey);
   const saveOAuthCredential = useStore(s => s.saveOAuthCredential);
   const setAuthState = useStore(s => s.setAuthState);
@@ -207,21 +204,6 @@ export default function SettingsPanel() {
         )}
       </div>
 
-      <div style={{
-        flexShrink: 0,
-        padding: '10px 12px',
-        borderTop: `1px solid ${tokens.colorNeutralStroke1}`,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-      }}>
-        <Body1Strong>Safety</Body1Strong>
-        <Switch
-          label="Auto-approve writes this session"
-          checked={appConfig.autoApproveSession}
-          onChange={(_, d) => setAppConfig({ autoApproveSession: d.checked })}
-        />
-      </div>
     </div>
   );
 }
