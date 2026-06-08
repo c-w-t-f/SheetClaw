@@ -45,4 +45,6 @@ export interface AuthState {
     | 'error';
   apiKeyMasked?: string;
   error?: string;
+  /** Raw key — Phase 8 will move this to OS vault. Personal-use only. */
+  _key?: string;
 }

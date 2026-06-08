@@ -1,0 +1,114 @@
+{
+  "version": "2026-06-08",
+  "updatedAt": "2026-06-08",
+  "entries": [
+    {
+      "provider": "openai",
+      "modelMatch": "gpt-4o",
+      "inputPerMTok": 2.50,
+      "outputPerMTok": 10.00,
+      "cacheReadPerMTok": 1.25,
+      "currency": "USD"
+    },
+    {
+      "provider": "openai",
+      "modelMatch": "gpt-4o-mini*",
+      "inputPerMTok": 0.15,
+      "outputPerMTok": 0.60,
+      "cacheReadPerMTok": 0.075,
+      "currency": "USD"
+    },
+    {
+      "provider": "openai",
+      "modelMatch": "gpt-4.1*",
+      "inputPerMTok": 2.00,
+      "outputPerMTok": 8.00,
+      "cacheReadPerMTok": 0.50,
+      "currency": "USD"
+    },
+    {
+      "provider": "openai",
+      "modelMatch": "o3*",
+      "inputPerMTok": 10.00,
+      "outputPerMTok": 40.00,
+      "currency": "USD"
+    },
+    {
+      "provider": "openai",
+      "modelMatch": "o4-mini*",
+      "inputPerMTok": 1.10,
+      "outputPerMTok": 4.40,
+      "currency": "USD"
+    },
+    {
+      "provider": "anthropic",
+      "modelMatch": "claude-opus-4*",
+      "inputPerMTok": 15.00,
+      "outputPerMTok": 75.00,
+      "cacheReadPerMTok": 1.50,
+      "cacheWritePerMTok": 18.75,
+      "currency": "USD"
+    },
+    {
+      "provider": "anthropic",
+      "modelMatch": "claude-sonnet-4*",
+      "inputPerMTok": 3.00,
+      "outputPerMTok": 15.00,
+      "cacheReadPerMTok": 0.30,
+      "cacheWritePerMTok": 3.75,
+      "currency": "USD"
+    },
+    {
+      "provider": "anthropic",
+      "modelMatch": "claude-haiku-4*",
+      "inputPerMTok": 0.80,
+      "outputPerMTok": 4.00,
+      "cacheReadPerMTok": 0.08,
+      "cacheWritePerMTok": 1.00,
+      "currency": "USD"
+    },
+    {
+      "provider": "anthropic",
+      "modelMatch": "claude-3-5-sonnet*",
+      "inputPerMTok": 3.00,
+      "outputPerMTok": 15.00,
+      "cacheReadPerMTok": 0.30,
+      "cacheWritePerMTok": 3.75,
+      "currency": "USD"
+    },
+    {
+      "provider": "anthropic",
+      "modelMatch": "claude-3-5-haiku*",
+      "inputPerMTok": 0.80,
+      "outputPerMTok": 4.00,
+      "cacheReadPerMTok": 0.08,
+      "cacheWritePerMTok": 1.00,
+      "currency": "USD"
+    },
+    {
+      "provider": "ollama",
+      "modelMatch": "*",
+      "inputPerMTok": 0.00,
+      "outputPerMTok": 0.00,
+      "currency": "USD"
+    },
+    {
+      "provider": "generic",
+      "modelMatch": "deepseek*",
+      "inputPerMTok": 0.27,
+      "outputPerMTok": 1.10,
+      "currency": "USD"
+    },
+    {
+      "provider": "generic",
+      "modelMatch": "qwen*",
+      "inputPerMTok": 0.50,
+      "outputPerMTok": 1.50,
+      "currency": "USD"
+    }
+  ],
+  "defaults": {
+    "inputPerMTok": 1.00,
+    "outputPerMTok": 3.00
+  }
+}

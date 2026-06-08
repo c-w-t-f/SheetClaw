@@ -18,6 +18,7 @@ import { SnapshotManager } from '../workbook/snapshot';
 import { ContextBuilder } from './context-builder';
 import { computeRangeDiff } from '../workbook/a1notation';
 import { useStore } from '../store/index';
+import { findPricing, computeCost } from '../pricing/index';
 
 const MAX_ITERATIONS = 25;
 export type LoopRunner = <T>(fn: (ctx: Excel.RequestContext) => Promise<T>) => Promise<T>;
@@ -132,7 +133,25 @@ export class AgentLoop {
 
       const sr = await this.stream(session, client, req, signal);
 
-      // Update session totals
+      // Record per-turn usage and update session totals
+      const pricingEntry = findPricing(cfg.provider, cfg.model);
+      const costUsd = computeCost({ inputTokens: sr.inputTokens, outputTokens: sr.outputTokens }, pricingEntry);
+      useStore.getState().recordUsage({
+        id: ulid(),
+        sessionId: session.id,
+        turnIndex: iter,
+        timestamp: new Date().toISOString(),
+        provider: cfg.provider as import('../types').ProviderKey,
+        model: cfg.model,
+        inputTokens: sr.inputTokens,
+        outputTokens: sr.outputTokens,
+        totalTokens: sr.inputTokens + sr.outputTokens,
+        estimatedCostUsd: costUsd,
+        pricingVersion: pricingEntry ? 'bundled' : 'default',
+        estimated: sr.inputTokens === 0 && sr.outputTokens === 0,
+        toolCallsCount: sr.toolCalls.length,
+      });
+
       const t = useStore.getState().currentSession?.totals ?? { inputTokens: 0, outputTokens: 0, costUsd: 0 };
       useStore.getState().updateSession({
         totals: { ...t, inputTokens: t.inputTokens + sr.inputTokens, outputTokens: t.outputTokens + sr.outputTokens },

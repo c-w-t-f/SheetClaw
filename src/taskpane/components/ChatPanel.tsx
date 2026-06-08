@@ -73,9 +73,7 @@ export default function ChatPanel() {
     const cfg = providers[provider];
     const authState = authStates[provider];
 
-    // Get API key from auth state (masked key is just for display; actual stored key needed)
-    // For now, prompt via storage key until Phase 8 auth is complete
-    const apiKey = (authState as { _key?: string })._key ?? '';
+    const apiKey = authState._key ?? '';
 
     const client = createAdapter(cfg, apiKey);
     const scope = { workbookId: getLayer().registry.getActiveId() ?? 'host' };

@@ -3,3 +3,6 @@ dist/
 .env
 .env.local
 *.local
+# TypeScript build artifacts emitted alongside source files
+src/**/*.js
+src/**/*.js.map
