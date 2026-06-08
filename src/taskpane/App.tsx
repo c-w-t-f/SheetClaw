@@ -31,7 +31,7 @@ export default function App() {
       </TabList>
 
       {/* Active surface */}
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, minHeight: 0, height: '100%' }}>
         {tab === 'chat'     && <ChatPanel />}
         {tab === 'usage'    && <UsageDashboard />}
         {tab === 'settings' && <SettingsPanel />}

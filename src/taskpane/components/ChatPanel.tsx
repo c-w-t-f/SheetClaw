@@ -16,9 +16,6 @@ import { createWorkbookLayer } from '../../workbook/index';
 import { getAgentLoop } from '../../agent/index';
 import { createAdapter } from '../../adapters/index';
 
-// ── Lazy-init the workbook layer + agent loop ──────────────────────────────
-// Singletons — created once when ChatPanel first mounts.
-
 let _layer: ReturnType<typeof createWorkbookLayer> | null = null;
 
 function getLayer() {
@@ -31,11 +28,7 @@ function getLoop() {
   return getAgentLoop(registry, executor, snapshots);
 }
 
-// ── Status colours ─────────────────────────────────────────────────────────
-
 const STATUS_RUNNING = new Set(['building', 'calling_llm', 'parsing', 'executing_tool']);
-
-// ── ChatPanel ──────────────────────────────────────────────────────────────
 
 export default function ChatPanel() {
   const [input, setInput] = useState('');
@@ -52,15 +45,22 @@ export default function ChatPanel() {
   const isRunning = session ? STATUS_RUNNING.has(session.status) : false;
   const awaitingConfirm = session?.status === 'awaiting_confirmation';
   const activeProvider = providers[appConfig.activeProvider];
+  const modelReady = !!activeProvider?.model.trim();
+  const providerReady = !!activeProvider?.enabled && activeProviderReady && modelReady;
+  const providerWarning = !activeProvider?.enabled
+    ? 'No provider enabled. Configure one in Settings.'
+    : !activeProviderReady
+    ? 'Active provider is not authenticated. Configure auth in Settings.'
+    : !modelReady
+    ? 'Select a model in Settings before chatting.'
+    : '';
 
-  // Refresh workbook registry on first mount
   useEffect(() => {
     getLayer().registry.refresh().catch(e => {
       setInitError(e instanceof Error ? e.message : String(e));
     });
   }, []);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
@@ -79,7 +79,7 @@ export default function ChatPanel() {
     try {
       await getLoop().start(text, scope, client, cfg);
     } catch {
-      // Errors are captured inside loop.start and written to store
+      // Errors are captured inside loop.start and written to store.
     }
   }
 
@@ -98,18 +98,16 @@ export default function ChatPanel() {
     }
   }
 
-  const modelReady = !!activeProvider?.model.trim();
-  const providerReady = !!activeProvider?.enabled && activeProviderReady && modelReady;
-  const providerWarning = !activeProvider?.enabled
-    ? 'No provider enabled. Configure one in Settings.'
-    : !activeProviderReady
-    ? 'Active provider is not authenticated. Configure auth in Settings.'
-    : !modelReady
-    ? 'Select a model in Settings before chatting.'
-    : '';
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 12, gap: 8 }}>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      minHeight: 0,
+      padding: 12,
+      gap: 8,
+      boxSizing: 'border-box',
+    }}>
       {initError && (
         <MessageBar intent="error">
           <MessageBarBody>{initError}</MessageBarBody>
@@ -122,8 +120,14 @@ export default function ChatPanel() {
         </MessageBar>
       )}
 
-      {/* Message list */}
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0 }}>
+      <div style={{
+        flex: '1 1 auto',
+        minHeight: 0,
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+      }}>
         {messages.filter(m => (m as Message & { sessionId?: string }).sessionId === session?.id).map(m => (
           <MessageBubble key={m.id} message={m} />
         ))}
@@ -140,20 +144,39 @@ export default function ChatPanel() {
         {isRunning && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Spinner size="extra-small" />
-            <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>{session?.status ?? 'running'}…</Caption1>
+            <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>{session?.status ?? 'running'}...</Caption1>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input area */}
-      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+      {session && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+          <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>
+            {session.model} | iter {session.iteration}/{session.maxIterations} | {session.totals.inputTokens + session.totals.outputTokens} tok
+          </Caption1>
+          <Button size="small" appearance="subtle" onClick={() => void undo()}>Undo last write</Button>
+        </div>
+      )}
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) 96px',
+        gap: 6,
+        flexShrink: 0,
+        alignItems: 'center',
+      }}>
         <Input
-          style={{ flex: 1 }}
-          placeholder="Ask something about this workbook…"
+          style={{ width: '100%' }}
+          placeholder="Ask something about this workbook..."
           value={input}
           onChange={(_, d) => setInput(d.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              void send();
+            }
+          }}
           disabled={isRunning || awaitingConfirm || !providerReady}
         />
         {isRunning
@@ -161,21 +184,9 @@ export default function ChatPanel() {
           : <Button appearance="primary" onClick={() => void send()} disabled={!input.trim() || !providerReady}>Send</Button>
         }
       </div>
-
-      {/* Session footer */}
-      {session && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>
-            {session.model} · iter {session.iteration}/{session.maxIterations} · {session.totals.inputTokens + session.totals.outputTokens} tok
-          </Caption1>
-          <Button size="small" appearance="subtle" onClick={() => void undo()}>Undo last write</Button>
-        </div>
-      )}
     </div>
   );
 }
-
-// ── MessageBubble ──────────────────────────────────────────────────────────
 
 function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === 'user';
@@ -184,7 +195,7 @@ function MessageBubble({ message }: { message: Message }) {
   if (message.role === 'tool_call') {
     return (
       <Caption1 style={{ color: tokens.colorNeutralForeground3, fontFamily: 'monospace' }}>
-        ⚙ {message.toolCall.name}({JSON.stringify(message.toolCall.arguments).slice(0, 80)})
+        Tool: {message.toolCall.name}({JSON.stringify(message.toolCall.arguments).slice(0, 80)})
       </Caption1>
     );
   }
@@ -192,7 +203,7 @@ function MessageBubble({ message }: { message: Message }) {
     const ok = message.result.ok;
     return (
       <Caption1 style={{ color: ok ? tokens.colorPaletteGreenForeground1 : tokens.colorPaletteRedForeground1, fontFamily: 'monospace' }}>
-        {ok ? '✓' : '✗'} {message.toolCallId.slice(0, 12)}… {ok ? JSON.stringify(message.result.data).slice(0, 80) : message.result.error?.message}
+        {ok ? 'OK' : 'ERR'} {message.toolCallId.slice(0, 12)}... {ok ? JSON.stringify(message.result.data).slice(0, 80) : message.result.error?.message}
       </Caption1>
     );
   }
@@ -222,8 +233,6 @@ function MessageBubble({ message }: { message: Message }) {
   );
 }
 
-// ── ConfirmationBlock ──────────────────────────────────────────────────────
-
 function ConfirmationBlock({
   diff, sheet, workbookName, severity, onApply, onCancel,
 }: {
@@ -247,21 +256,21 @@ function ConfirmationBlock({
       gap: 8,
       background: tokens.colorNeutralBackground1,
     }}>
-      <Body1Strong>Confirm change — {workbookName} / {sheet}</Body1Strong>
+      <Body1Strong>Confirm change - {workbookName} / {sheet}</Body1Strong>
       {severity === 'elevated' && (
-        <Caption1 style={{ color: tokens.colorPaletteRedForeground1 }}>⚠ Large change — review carefully</Caption1>
+        <Caption1 style={{ color: tokens.colorPaletteRedForeground1 }}>Large change - review carefully</Caption1>
       )}
       <div style={{ fontFamily: 'monospace', fontSize: 11, display: 'flex', flexDirection: 'column', gap: 2 }}>
         {shown.map((d, i) => (
           <div key={i}>
             <span style={{ color: tokens.colorNeutralForeground3 }}>{d.address}: </span>
             <span style={{ color: tokens.colorPaletteRedForeground1 }}>{fmt(d.before)}</span>
-            <span> → </span>
+            <span> to </span>
             <span style={{ color: tokens.colorPaletteGreenForeground1 }}>{fmt(d.after)}</span>
           </div>
         ))}
         {diff.length > MAX_SHOWN && (
-          <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>…and {diff.length - MAX_SHOWN} more cells</Caption1>
+          <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>...and {diff.length - MAX_SHOWN} more cells</Caption1>
         )}
         {diff.length === 0 && <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>(no cell values change)</Caption1>}
       </div>
