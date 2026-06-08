@@ -26,7 +26,7 @@ project-level progress.
 | Phase | Status | Completed | What landed |
 |-------|--------|-----------|-------------|
 | 0 — Spikes & decisions | done | 2026-06-08 | D1/D4/D5/D8 resolved via live CORS probes + OIDC discovery + Office.js analysis |
-| 1 — Scaffold + HTTPS + self-test | not started | — | — |
+| 1 — Scaffold + HTTPS + self-test | in progress | — | Vite+React+TS scaffolded; cert installed; StartupSelfTest built; dev server confirmed at https://localhost:3000 — awaiting G0 sideload test |
 | 2 — Store + LLMClient + OpenAI adapter | not started | — | — |
 | 3 — Anthropic + Ollama + harness | not started | — | — |
 | 4 — Registry + ToolExecutor + read tools | not started | — | — |

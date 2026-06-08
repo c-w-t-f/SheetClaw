@@ -1,0 +1,33 @@
+{
+  "name": "excel-ai-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "install-certs": "office-addin-dev-certs install",
+    "uninstall-certs": "office-addin-dev-certs uninstall",
+    "validate-manifest": "office-addin-manifest validate manifest.xml",
+    "sideload": "office-addin-debugging start manifest.xml desktop --app excel"
+  },
+  "dependencies": {
+    "@fluentui/react-components": "^9.74.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/office-js": "^1.0.592",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.0.0",
+    "office-addin-dev-certs": "^2.0.9",
+    "office-addin-debugging": "^6.1.1",
+    "office-addin-manifest": "^2.1.5",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true
+  }
+}
