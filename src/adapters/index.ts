@@ -21,6 +21,14 @@ export function createAdapter(cfg: ProviderConfig, auth: string | AuthState = ''
       return new OllamaAdapter({ baseUrl: cfg.baseUrl });
     case 'openai':
     case 'generic':
+    case 'deepseek':
+    case 'groq':
+    case 'mistral':
+    case 'together':
+    case 'kimi':
+    case 'glm':
+    case 'qwen':
+    case 'llama':
       return new OpenAIAdapter({ apiKey, baseUrl: cfg.baseUrl, extraHeaders: cfg.headers });
   }
 }

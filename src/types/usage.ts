@@ -1,4 +1,16 @@
-export type ProviderKey = 'ollama' | 'openai' | 'anthropic' | 'generic';
+export type ProviderKey =
+  | 'ollama'
+  | 'openai'
+  | 'anthropic'
+  | 'generic'
+  | 'deepseek'
+  | 'groq'
+  | 'mistral'
+  | 'together'
+  | 'kimi'
+  | 'glm'
+  | 'qwen'
+  | 'llama';
 
 export interface UsageRecord {
   id: string;

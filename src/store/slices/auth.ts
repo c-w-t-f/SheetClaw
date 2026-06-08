@@ -31,7 +31,20 @@ const DEFAULT_AUTH_STATE = (provider: ProviderKey): AuthState => ({
   state: 'unauthenticated',
 });
 
-const ALL_PROVIDERS: ProviderKey[] = ['ollama', 'openai', 'anthropic', 'generic'];
+const ALL_PROVIDERS: ProviderKey[] = [
+  'ollama',
+  'openai',
+  'anthropic',
+  'generic',
+  'deepseek',
+  'groq',
+  'mistral',
+  'together',
+  'kimi',
+  'glm',
+  'qwen',
+  'llama',
+];
 
 export const createAuthSlice: StateCreator<AuthSlice> = (set, get) => ({
   authStates: Object.fromEntries(

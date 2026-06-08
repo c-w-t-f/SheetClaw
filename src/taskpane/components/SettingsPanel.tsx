@@ -24,7 +24,7 @@ import type { AuthState, ProviderConfig, ProviderKey } from '../../types';
 import { getAuthCredential } from '../../auth/credentials';
 import { signInWithOpenRouter } from '../../auth/oauthFlow';
 
-type ApiKeyProvider = 'openai' | 'anthropic';
+type ApiKeyProvider = Exclude<ProviderKey, 'ollama' | 'generic'>;
 type SettingsTabKey = 'ollama' | 'apiKeys' | 'generic';
 
 const SETTINGS_TABS: { key: SettingsTabKey; label: string }[] = [
@@ -36,6 +36,14 @@ const SETTINGS_TABS: { key: SettingsTabKey; label: string }[] = [
 const API_KEY_PROVIDERS: { key: ApiKeyProvider; label: string }[] = [
   { key: 'openai', label: 'OpenAI' },
   { key: 'anthropic', label: 'Anthropic' },
+  { key: 'deepseek', label: 'DeepSeek' },
+  { key: 'groq', label: 'Groq' },
+  { key: 'mistral', label: 'Mistral' },
+  { key: 'together', label: 'Together AI' },
+  { key: 'kimi', label: 'Kimi' },
+  { key: 'glm', label: 'GLM' },
+  { key: 'qwen', label: 'Qwen' },
+  { key: 'llama', label: 'Llama' },
 ];
 
 const STATIC_MODELS: Partial<Record<ProviderKey, string[]>> = {
@@ -52,6 +60,19 @@ const STATIC_MODELS: Partial<Record<ProviderKey, string[]>> = {
     'meta-llama/llama-3.3-70b-instruct',
     'google/gemini-2.0-flash-001',
   ],
+  deepseek: ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'],
+  groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-120b', 'moonshotai/kimi-k2-instruct'],
+  mistral: ['mistral-large-latest', 'mistral-small-latest', 'codestral-latest'],
+  together: [
+    'meta-llama/Llama-3.3-70B-Instruct-Turbo',
+    'meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8',
+    'deepseek-ai/DeepSeek-V3',
+    'Qwen/Qwen2.5-Coder-32B-Instruct',
+  ],
+  kimi: ['kimi-k2.6', 'kimi-k2.5', 'kimi-k2-turbo-preview'],
+  glm: ['glm-4.7', 'glm-4.6', 'glm-4.5', 'glm-4.5-flash'],
+  qwen: ['qwen-plus', 'qwen-max', 'qwen-turbo', 'qwen3-coder-plus'],
+  llama: ['Llama-3.3-70B-Instruct', 'Llama-4-Maverick-17B-128E-Instruct-FP8', 'Llama-4-Scout-17B-16E-Instruct-FP8'],
 };
 
 const OPENAI_CHAT_PREFIXES = ['gpt-', 'o1', 'o3', 'o4', 'chatgpt-'];
@@ -69,25 +90,42 @@ function isOpenRouterBaseUrl(url: string): boolean {
 }
 
 function chooseDefaultModel(providerKey: ProviderKey, baseUrl: string, ids: string[]): string {
+  const preferredByProvider: Partial<Record<ProviderKey, string[]>> = {
+    openai: ['gpt-4o', 'gpt-4o-mini'],
+    anthropic: ['claude-sonnet-4-6', 'claude-3-5-sonnet-latest'],
+    deepseek: ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat'],
+    groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'],
+    mistral: ['mistral-large-latest', 'mistral-small-latest'],
+    together: ['meta-llama/Llama-3.3-70B-Instruct-Turbo', 'meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8'],
+    kimi: ['kimi-k2.6', 'kimi-k2.5'],
+    glm: ['glm-4.7', 'glm-4.6'],
+    qwen: ['qwen-plus', 'qwen-max'],
+    llama: ['Llama-3.3-70B-Instruct', 'Llama-4-Maverick-17B-128E-Instruct-FP8'],
+  };
+  const preferred = preferredByProvider[providerKey];
+  if (preferred) {
+    const match = preferred.find(id => ids.includes(id));
+    if (match) return match;
+  }
   if (providerKey === 'generic' && isOpenRouterBaseUrl(baseUrl)) {
-    const preferred = [
+    const openRouterPreferred = [
       'openai/gpt-4o-mini',
       'openai/gpt-4o',
       'google/gemini-2.0-flash-001',
       'anthropic/claude-sonnet-4-6',
     ];
-    return preferred.find(id => ids.includes(id)) ?? ids[0] ?? '';
+    return openRouterPreferred.find(id => ids.includes(id)) ?? ids[0] ?? '';
   }
   return ids[0] ?? '';
 }
 
 function providerToTab(provider: ProviderKey): SettingsTabKey {
-  if (provider === 'openai' || provider === 'anthropic') return 'apiKeys';
+  if (provider !== 'ollama' && provider !== 'generic') return 'apiKeys';
   return provider;
 }
 
 function isApiKeyProvider(provider: ProviderKey): provider is ApiKeyProvider {
-  return provider === 'openai' || provider === 'anthropic';
+  return provider !== 'ollama' && provider !== 'generic';
 }
 
 export default function SettingsPanel() {
