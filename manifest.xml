@@ -10,8 +10,8 @@
   <Version>0.1.0.0</Version>
   <ProviderName>Local Dev</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="Excel AI Assistant"/>
-  <Description DefaultValue="Agentic chat interface for Excel workbooks via multiple LLM backends."/>
+  <DisplayName DefaultValue="SheetClaw"/>
+  <Description DefaultValue="SheetClaw helps read, analyze, and edit Excel workbooks through an agentic chat interface."/>
   <IconUrl DefaultValue="https://localhost:3000/assets/icon-32.png"/>
   <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/icon-80.png"/>
   <SupportUrl DefaultValue="https://localhost:3000"/>
@@ -83,13 +83,13 @@
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://localhost:3000"/>
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GetStarted.Title" DefaultValue="Get started with Excel AI Assistant"/>
-        <bt:String id="CommandsGroup.Label" DefaultValue="AI Assistant"/>
-        <bt:String id="TaskpaneButton.Label" DefaultValue="Open AI Chat"/>
+        <bt:String id="GetStarted.Title" DefaultValue="Get started with SheetClaw"/>
+        <bt:String id="CommandsGroup.Label" DefaultValue="SheetClaw"/>
+        <bt:String id="TaskpaneButton.Label" DefaultValue="Open SheetClaw"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="Agentic chat for your workbook."/>
-        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open the AI chat panel."/>
+        <bt:String id="GetStarted.Description" DefaultValue="SheetClaw brings agentic chat to your workbook."/>
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open SheetClaw for this workbook."/>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

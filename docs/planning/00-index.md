@@ -1,6 +1,6 @@
-# Excel Agentic Add-in — Planning Suite Index
+# SheetClaw Planning Suite Index
 
-Personal-use Excel task pane add-in (Office.js + React) providing an agentic chat interface
+SheetClaw is a personal-use Excel task pane add-in (Office.js + React) providing an agentic chat interface
 for reading and editing Excel workbooks across multiple LLM backends. Sideloaded locally via
 shared-folder manifest. No AppSource distribution.
 

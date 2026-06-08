@@ -61,7 +61,7 @@ describe('ContextBuilder.build', () => {
     const req = cb.build(SESSION, msgs, [], CFG);
 
     expect(req.model).toBe('llama3.2');
-    expect(req.system).toContain('AI assistant');
+    expect(req.system).toContain('SheetClaw');
     expect(req.messages.some(m => m.role === 'user' && (m.content as string).includes('Sum column A'))).toBe(true);
   });
 

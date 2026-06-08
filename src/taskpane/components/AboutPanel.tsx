@@ -21,10 +21,13 @@ export default function AboutPanel() {
       flexDirection: 'column',
       gap: 16,
     }}>
-      <Title3>Excel AI Assistant</Title3>
+      <Title3>
+        <span aria-hidden="true" style={{ marginRight: 8 }}>🦞</span>
+        SheetClaw
+      </Title3>
 
       <Body1 style={{ color: tokens.colorNeutralForeground2, lineHeight: '1.5' }}>
-        An agentic chat interface for Excel workbooks. Ask questions, read and
+        SheetClaw is an agentic chat interface for Excel workbooks. Ask questions, read and
         write cells, create charts and pivot tables — all through a conversational
         interface backed by your choice of LLM provider.
       </Body1>

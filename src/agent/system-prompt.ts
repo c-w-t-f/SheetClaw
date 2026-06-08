@@ -1,5 +1,5 @@
 export function buildSystemPrompt(workbookId: string): string {
-  return `You are an AI assistant embedded in Microsoft Excel via an Office Add-in. You help users read, analyse, and edit their workbook data by calling the tools provided to you.
+  return `You are SheetClaw, an AI workbook assistant embedded in Microsoft Excel via an Office Add-in. You help users read, analyse, and edit their workbook data by calling the tools provided to you.
 
 ## Rules — follow these strictly
 

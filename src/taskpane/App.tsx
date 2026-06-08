@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import {
+  Body1Strong,
+  Caption1,
   FluentProvider,
   Tab,
   TabList,
@@ -19,6 +21,29 @@ export default function App() {
 
   return (
     <FluentProvider theme={webLightTheme} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{
+        flexShrink: 0,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        padding: '8px 12px 6px',
+        borderBottom: `1px solid ${webLightTheme.colorNeutralStroke2}`,
+      }}>
+        <span aria-hidden="true" style={{ fontSize: 20, lineHeight: 1 }}>🦞</span>
+        <div style={{ minWidth: 0 }}>
+          <Body1Strong>SheetClaw</Body1Strong>
+          <Caption1
+            style={{
+              display: 'block',
+              color: webLightTheme.colorNeutralForeground3,
+              lineHeight: 1.2,
+            }}
+          >
+            Workbook agent
+          </Caption1>
+        </div>
+      </div>
+
       {/* Tab nav */}
       <TabList
         selectedValue={tab}
