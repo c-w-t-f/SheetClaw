@@ -11,7 +11,6 @@ import UsageDashboard from './components/UsageDashboard';
 import SettingsPanel from './components/SettingsPanel';
 import AboutPanel from './components/AboutPanel';
 import Footer from './components/Footer';
-import WorkbookScopeStrip from './components/WorkbookScopeStrip';
 
 type TabId = 'chat' | 'usage' | 'settings' | 'about';
 
@@ -33,7 +32,6 @@ export default function App() {
         <Tab value="about">About</Tab>
       </TabList>
 
-      <WorkbookScopeStrip />
 
       {/* Active surface */}
       <div style={{ flex: 1, minHeight: 0, height: '100%' }}>
