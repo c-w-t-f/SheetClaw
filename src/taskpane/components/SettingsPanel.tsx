@@ -140,13 +140,14 @@ function ProviderForm({
   providerKey, cfg, auth, isActive,
   onSetActive, onSave, onSaveKey, onClearKey,
 }: ProviderFormProps) {
+  // Draft local state for fields that need buffering (base URL, typed model).
+  // Committed to the store (and localStorage) on blur / dropdown selection.
   const [baseUrl, setBaseUrl]   = useState(cfg.baseUrl);
   const [model, setModel]       = useState(cfg.model);
   const [apiKey, setApiKey]     = useState('');
   const [showKey, setShowKey]   = useState(false);
 
   // Pre-seed model list: prefer persisted knownModels, then static fallback.
-  // Ollama has no static fallback — list depends on local installation.
   const initialList = cfg.knownModels?.map(m => m.id)
     ?? STATIC_MODELS[providerKey]
     ?? [];
@@ -164,16 +165,28 @@ function ProviderForm({
 
   // Auto-load on mount:
   //  - ollama: always (no auth)
-  //  - anthropic: always (listModels() is a local static list, no key needed)
+  //  - anthropic: always (listModels() is a static local list, no key needed)
   //  - openai / generic: only if key already saved
   useEffect(() => {
     const canLoad = providerKey === 'ollama'
       || providerKey === 'anthropic'
       || !!auth._key;
     if (!canLoad) return;
-    void fetchModels(baseUrl, auth._key ?? '');
+    void fetchModels(cfg.baseUrl, auth._key ?? '');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Persist helpers — called immediately, no Save button required ──────────
+
+  function commitBaseUrl(url: string) {
+    onSave({ baseUrl: url, enabled: true });
+  }
+
+  function commitModel(m: string) {
+    onSave({ model: m, enabled: true });
+  }
+
+  // ── Model list fetch ───────────────────────────────────────────────────────
 
   async function fetchModels(url: string, key: string): Promise<string[]> {
     setLoadState('loading');
@@ -182,8 +195,8 @@ function ProviderForm({
       const adapter = createAdapter({ ...cfg, baseUrl: url }, key);
       let found = await adapter.listModels();
 
-      // OpenAI's /v1/models returns embeddings, audio, image models too.
-      // Filter down to chat-capable models for a cleaner picker.
+      // OpenAI's /v1/models includes embeddings, audio, image models.
+      // Filter to chat-capable models for a cleaner picker.
       if (providerKey === 'openai') {
         const chat = found.filter(m => isOpenAIChatModel(m.id));
         if (chat.length > 0) found = chat;
@@ -192,7 +205,6 @@ function ProviderForm({
       const ids = found.map(m => m.id).sort();
       setModelList(ids);
       setLoadState('loaded');
-      // Persist to store so the list survives a settings close/reopen
       onSave({ knownModels: found });
       return ids;
     } catch (e) {
@@ -216,13 +228,10 @@ function ProviderForm({
     }
   }
 
-  function save() {
-    onSave({ baseUrl, model, enabled: true });
+  function saveKey() {
     if (apiKey) {
       onSaveKey(apiKey);
       setApiKey('');
-    } else if (!needsKey && !keySet) {
-      onSaveKey(''); // mark Ollama authenticated
     }
   }
 
@@ -243,11 +252,12 @@ function ProviderForm({
         )}
       </div>
 
-      {/* Base URL */}
+      {/* Base URL — auto-saves on blur */}
       <Field label="Base URL">
         <Input
           value={baseUrl}
           onChange={(_, d) => setBaseUrl(d.value)}
+          onBlur={() => commitBaseUrl(baseUrl)}
           size="small"
           style={{ fontFamily: 'monospace', fontSize: 12 }}
         />
@@ -265,8 +275,13 @@ function ProviderForm({
             <Combobox
               value={model}
               selectedOptions={model ? [model] : []}
-              onOptionSelect={(_, d) => setModel(d.optionValue ?? '')}
+              onOptionSelect={(_, d) => {
+                const m = d.optionValue ?? '';
+                setModel(m);
+                commitModel(m);
+              }}
               onChange={(e) => setModel(e.target.value)}
+              onBlur={() => commitModel(model)}
               placeholder="Select or type a model…"
               size="small"
               style={{ flex: 1, minWidth: 0 }}
@@ -288,6 +303,7 @@ function ProviderForm({
             <Input
               value={model}
               onChange={(_, d) => setModel(d.value)}
+              onBlur={() => commitModel(model)}
               placeholder={providerKey === 'ollama' ? 'e.g. llama3.2' : 'e.g. gpt-4o'}
               size="small"
               style={{ flex: 1, fontFamily: 'monospace', fontSize: 12 }}
@@ -346,9 +362,11 @@ function ProviderForm({
         </Caption1>
       </div>
 
-      {/* Actions */}
+      {/* Actions — base URL and model auto-save; key requires explicit action */}
       <div style={{ display: 'flex', gap: 8 }}>
-        <Button appearance="primary" size="small" onClick={save}>Save</Button>
+        {needsKey && apiKey && (
+          <Button appearance="primary" size="small" onClick={saveKey}>Save key</Button>
+        )}
         <Button
           appearance="secondary"
           size="small"

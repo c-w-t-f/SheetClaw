@@ -86,9 +86,15 @@ export const createConfigSlice: StateCreator<ConfigSlice> = (set, get) => ({
 
   setActiveProvider(provider) {
     set(state => {
-      const updated = { ...state.appConfig, activeProvider: provider };
-      storage.put(APP_KEY, updated);
-      return { appConfig: updated };
+      const appConfig = { ...state.appConfig, activeProvider: provider };
+      // Activating a provider implies enabling it.
+      const providers = {
+        ...state.providers,
+        [provider]: { ...state.providers[provider], enabled: true },
+      };
+      storage.put(APP_KEY, appConfig);
+      storage.put(STORAGE_KEY, providers);
+      return { appConfig, providers };
     });
   },
 
@@ -101,11 +107,21 @@ export const createConfigSlice: StateCreator<ConfigSlice> = (set, get) => ({
   },
 
   loadConfigFromStorage() {
-    const providers = storage.get<Record<ProviderKey, ProviderConfig>>(STORAGE_KEY);
-    const appConfig = storage.get<AppConfig>(APP_KEY);
-    set({
-      providers: providers ? { ...DEFAULT_PROVIDERS, ...providers } : get().providers,
-      appConfig: appConfig ? { ...DEFAULT_APP_CONFIG, ...appConfig } : get().appConfig,
-    });
+    const storedProviders = storage.get<Record<ProviderKey, ProviderConfig>>(STORAGE_KEY);
+    const storedApp      = storage.get<AppConfig>(APP_KEY);
+
+    const appConfig = storedApp ? { ...DEFAULT_APP_CONFIG, ...storedApp } : get().appConfig;
+    let providers   = storedProviders
+      ? { ...DEFAULT_PROVIDERS, ...storedProviders }
+      : get().providers;
+
+    // Migration: if the stored active provider somehow has enabled:false, fix it.
+    const active = appConfig.activeProvider;
+    if (providers[active] && !providers[active].enabled) {
+      providers = { ...providers, [active]: { ...providers[active], enabled: true } };
+      storage.put(STORAGE_KEY, providers);
+    }
+
+    set({ providers, appConfig });
   },
 });

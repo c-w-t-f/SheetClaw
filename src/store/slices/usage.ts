@@ -50,8 +50,8 @@ export const createUsageSlice: StateCreator<UsageSlice> = set => ({
 
     // Persist to daily bucket
     const key = `xl.usage.day.${day}`;
-    const existing = storage.get<UsageRecord[]>(key) ?? [];
-    const updated = [...existing, record];
+    const existing = storage.get<UsageRecord[]>(key);
+    const updated = [...(Array.isArray(existing) ? existing : []), record];
     storage.put(key, updated);
 
     // Update index

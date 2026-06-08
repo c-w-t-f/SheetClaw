@@ -10,8 +10,8 @@ export function loadBuckets(fromDay: string, toDay: string): UsageRecord[] {
     if (!k?.startsWith('xl.usage.day.')) continue;
     const day = k.slice('xl.usage.day.'.length);
     if (day >= fromDay && day <= toDay) {
-      const bucket = storage.get<UsageRecord[]>(k) ?? [];
-      records.push(...bucket);
+      const bucket = storage.get<UsageRecord[]>(k);
+      if (Array.isArray(bucket)) records.push(...bucket);
     }
   }
   return records;

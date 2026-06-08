@@ -1,14 +1,17 @@
 const SCHEMA_VERSION = 1;
 
-type Versioned<T> = T & { _v: number };
+// Arrays can't be spread-merged with {_v} — we box them under _arr instead.
+type Envelope = { _v: number; _arr?: unknown[] } & Record<string, unknown>;
 
-function withVersion<T extends object>(value: T): Versioned<T> {
-  return { ...value, _v: SCHEMA_VERSION };
+function pack(value: unknown): Envelope {
+  if (Array.isArray(value)) return { _v: SCHEMA_VERSION, _arr: value };
+  return { ...(value as Record<string, unknown>), _v: SCHEMA_VERSION };
 }
 
-function stripVersion<T>(value: Versioned<T>): T {
+function unpack<T>(env: Envelope): T {
+  if ('_arr' in env) return env._arr as T;
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { _v, ...rest } = value;
+  const { _v, ...rest } = env;
   return rest as T;
 }
 
@@ -17,16 +20,16 @@ export const storage = {
     try {
       const raw = localStorage.getItem(key);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as Versioned<T>;
-      if (parsed._v !== SCHEMA_VERSION) return null; // stale schema, discard
-      return stripVersion(parsed);
+      const env = JSON.parse(raw) as Envelope;
+      if (env._v !== SCHEMA_VERSION) return null;
+      return unpack<T>(env);
     } catch {
       return null;
     }
   },
 
-  put<T extends object>(key: string, value: T): void {
-    const serialized = JSON.stringify(withVersion(value));
+  put<T>(key: string, value: T): void {
+    const serialized = JSON.stringify(pack(value));
     try {
       localStorage.setItem(key, serialized);
     } catch (e) {
