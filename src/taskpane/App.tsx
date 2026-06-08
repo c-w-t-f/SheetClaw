@@ -9,10 +9,11 @@ import {
 import ChatPanel from './components/ChatPanel';
 import UsageDashboard from './components/UsageDashboard';
 import SettingsPanel from './components/SettingsPanel';
+import AboutPanel from './components/AboutPanel';
 import Footer from './components/Footer';
 import WorkbookScopeStrip from './components/WorkbookScopeStrip';
 
-type TabId = 'chat' | 'usage' | 'settings';
+type TabId = 'chat' | 'usage' | 'settings' | 'about';
 
 export default function App() {
   const [tab, setTab] = useState<TabId>('chat');
@@ -23,12 +24,13 @@ export default function App() {
       <TabList
         selectedValue={tab}
         onTabSelect={(_, d: SelectTabData) => setTab(d.value as TabId)}
-        style={{ flexShrink: 0, paddingLeft: 8, borderBottom: `1px solid ${webLightTheme.colorNeutralStroke1}` }}
+        style={{ flexShrink: 0, borderBottom: `1px solid ${webLightTheme.colorNeutralStroke1}` }}
         size="small"
       >
         <Tab value="chat">Chat</Tab>
         <Tab value="usage">Usage</Tab>
         <Tab value="settings">Settings</Tab>
+        <Tab value="about">About</Tab>
       </TabList>
 
       <WorkbookScopeStrip />
@@ -38,6 +40,7 @@ export default function App() {
         {tab === 'chat'     && <ChatPanel onOpenSettings={() => setTab('settings')} />}
         {tab === 'usage'    && <UsageDashboard />}
         {tab === 'settings' && <SettingsPanel />}
+        {tab === 'about'    && <AboutPanel />}
       </div>
 
       {/* Persistent footer */}
