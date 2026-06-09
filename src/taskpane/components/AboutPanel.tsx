@@ -38,7 +38,22 @@ export default function AboutPanel() {
       </Body1>
 
       <a
-        href="https://github.com/cwtf/"
+        href="https://cwtf.github.io/SheetClaw/privacy.html"
+        target="_blank"
+        rel="noreferrer"
+        style={{
+          display: 'block',
+          fontSize: 12,
+          color: tokens.colorNeutralForeground3,
+          textDecoration: 'none',
+          marginTop: 4,
+        }}
+      >
+        Privacy Policy
+      </a>
+
+      <a
+        href="https://github.com/cwtf/SheetClaw"
         target="_blank"
         rel="noreferrer"
         style={{
@@ -53,7 +68,7 @@ export default function AboutPanel() {
         onMouseLeave={e => (e.currentTarget.style.color = tokens.colorNeutralForeground1)}
       >
         <GitHubIcon />
-        <Caption1>github.com/cwtf</Caption1>
+        <Caption1>github.com/cwtf/SheetClaw</Caption1>
       </a>
     </div>
   );

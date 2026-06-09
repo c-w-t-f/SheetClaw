@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SheetClaw – Privacy Policy</title>
+    <style>
+      body {
+        max-width: 680px;
+        margin: 48px auto;
+        padding: 0 24px 64px;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 15px;
+        line-height: 1.6;
+        color: #242424;
+      }
+      h1 { font-size: 24px; margin-bottom: 4px; }
+      h2 { font-size: 16px; margin-top: 32px; margin-bottom: 8px; }
+      p, li { color: #424242; }
+      ul { padding-left: 20px; }
+      a { color: #0f6cbd; }
+      .meta { font-size: 13px; color: #616161; margin-bottom: 32px; }
+    </style>
+  </head>
+  <body>
+    <h1>SheetClaw Privacy Policy</h1>
+    <p class="meta">Last updated: June 2026</p>
+
+    <p>
+      SheetClaw is a personal-use Microsoft Excel task pane add-in. This policy
+      describes what data the add-in collects, how it is stored, and where it is sent.
+    </p>
+
+    <h2>Data stored on your device</h2>
+    <p>
+      All data SheetClaw stores is kept locally in your browser's
+      <code>localStorage</code>, scoped to the add-in's origin. It is never uploaded
+      to any server operated by SheetClaw. The following is stored:
+    </p>
+    <ul>
+      <li>
+        <strong>LLM provider credentials</strong> — API keys and OAuth tokens you enter
+        in Settings. These are stored so you do not need to re-enter them each session.
+      </li>
+      <li>
+        <strong>Provider configuration</strong> — your chosen provider, base URL, and
+        model name.
+      </li>
+      <li>
+        <strong>Usage history</strong> — estimated token counts and costs derived from
+        your chat sessions, stored as daily buckets. No message content is retained.
+      </li>
+      <li>
+        <strong>Session state</strong> — the current chat session's message history,
+        kept only for the lifetime of the task pane.
+      </li>
+    </ul>
+    <p>
+      You can clear all stored data at any time by removing the add-in from Excel or
+      clearing your browser's localStorage for the add-in's origin.
+    </p>
+
+    <h2>Data sent to third-party LLM providers</h2>
+    <p>
+      When you send a message in the chat interface, SheetClaw forwards your prompt
+      and relevant workbook context (cell values, sheet names, named ranges) to the
+      LLM provider you have configured. This may include:
+    </p>
+    <ul>
+      <li>Text you type in the chat input.</li>
+      <li>Cell contents from the active workbook that the agent reads as context.</li>
+      <li>Workbook metadata such as sheet names and named range names.</li>
+    </ul>
+    <p>
+      SheetClaw sends this data directly from your device to the provider's API using
+      your own credentials. The provider's own privacy policy governs how that data is
+      handled. SheetClaw does not act as an intermediary and retains no copy of this
+      data after the request completes.
+    </p>
+    <p>
+      Supported providers include Ollama (local, no data leaves your device), OpenAI,
+      Anthropic, OpenRouter, DeepSeek, Groq, Mistral, Together AI, Kimi, GLM, Qwen,
+      Llama, and any compatible endpoint you configure.
+    </p>
+
+    <h2>Data not collected</h2>
+    <p>SheetClaw does not collect:</p>
+    <ul>
+      <li>Analytics or telemetry of any kind.</li>
+      <li>Crash reports or usage statistics sent to a SheetClaw server.</li>
+      <li>Personal information such as your name, email address, or location.</li>
+    </ul>
+
+    <h2>Children</h2>
+    <p>
+      SheetClaw is not directed at children under 13 and does not knowingly collect
+      data from them.
+    </p>
+
+    <h2>Changes to this policy</h2>
+    <p>
+      If this policy changes, the updated version will be published at this URL with a
+      revised date. Continued use of the add-in after a change constitutes acceptance
+      of the updated policy.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      Questions about this policy can be raised by opening an issue on the
+      <a href="https://github.com/cwtf/SheetClaw" target="_blank" rel="noreferrer">
+        SheetClaw GitHub repository</a>.
+    </p>
+  </body>
+</html>
