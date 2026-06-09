@@ -38,7 +38,7 @@ export default function AboutPanel() {
       </Body1>
 
       <a
-        href="https://github.com/c-w-t-f/"
+        href="https://github.com/cwtf/"
         target="_blank"
         rel="noreferrer"
         style={{
@@ -53,7 +53,7 @@ export default function AboutPanel() {
         onMouseLeave={e => (e.currentTarget.style.color = tokens.colorNeutralForeground1)}
       >
         <GitHubIcon />
-        <Caption1>github.com/c-w-t-f</Caption1>
+        <Caption1>github.com/cwtf</Caption1>
       </a>
     </div>
   );
