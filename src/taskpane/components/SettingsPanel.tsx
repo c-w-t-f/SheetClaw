@@ -246,6 +246,7 @@ function ProviderForm({
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [testMsg, setTestMsg] = useState('');
   const [oauthStatus, setOAuthStatus] = useState<'idle' | 'authenticating' | 'ok' | 'error'>('idle');
+  const [copiedOllamaCmd, setCopiedOllamaCmd] = useState(false);
 
   const needsKey = providerKey !== 'ollama';
   const storedCredential = getAuthCredential(auth);
@@ -498,6 +499,38 @@ function ProviderForm({
         <MessageBar intent={testStatus === 'ok' ? 'success' : 'error'}>
           <MessageBarBody>
             <Caption1>{testMsg}</Caption1>
+          </MessageBarBody>
+        </MessageBar>
+      )}
+
+      {providerKey === 'ollama' && (loadState === 'error' || testStatus === 'error') && (
+        <MessageBar intent="warning">
+          <MessageBarBody>
+            <Caption1>Ollama may not be running. Start it with:</Caption1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+              <span style={{
+                fontFamily: 'monospace',
+                fontSize: 12,
+                background: tokens.colorNeutralBackground3,
+                padding: '2px 6px',
+                borderRadius: 3,
+                flex: 1,
+              }}>
+                ollama serve
+              </span>
+              <Button
+                size="small"
+                appearance="subtle"
+                onClick={() => {
+                  void navigator.clipboard.writeText('ollama serve').then(() => {
+                    setCopiedOllamaCmd(true);
+                    setTimeout(() => setCopiedOllamaCmd(false), 2000);
+                  });
+                }}
+              >
+                {copiedOllamaCmd ? 'Copied!' : 'Copy'}
+              </Button>
+            </div>
           </MessageBarBody>
         </MessageBar>
       )}
