@@ -7,8 +7,8 @@
   xsi:type="TaskPaneApp">
 
   <Id>F58DEFDB-FB64-4DA7-9F25-761DAB45DE9B</Id>
-  <Version>0.1.0.0</Version>
-  <ProviderName>Local Dev</ProviderName>
+  <Version>1.0.0.0</Version>
+  <ProviderName>cwtf</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="SheetClaw"/>
   <Description DefaultValue="SheetClaw helps read, analyze, and edit Excel workbooks through an agentic chat interface."/>
@@ -39,7 +39,6 @@
             <Description resid="GetStarted.Description"/>
             <LearnMoreUrl resid="GetStarted.LearnMoreUrl"/>
           </GetStarted>
-          <FunctionFile resid="Commands.Url"/>
           <ExtensionPoint xsi:type="PrimaryCommandSurface">
             <OfficeTab id="TabHome">
               <Group id="CommandsGroup">
@@ -78,7 +77,6 @@
         <bt:Image id="Icon.80x80" DefaultValue="https://cwtf.github.io/SheetClaw/assets/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="Commands.Url" DefaultValue="https://cwtf.github.io/SheetClaw/commands.html"/>
         <bt:Url id="Taskpane.Url" DefaultValue="https://cwtf.github.io/SheetClaw/taskpane.html"/>
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://cwtf.github.io/SheetClaw"/>
       </bt:Urls>
