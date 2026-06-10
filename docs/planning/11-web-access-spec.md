@@ -244,3 +244,15 @@ How the search-provider decision plays out per audience. The governing fact: **S
 | Tavily | pass / pass | bearer-header | 200 | Free-tier key; spec expectation: about 1,000 searches/month | `{ query: string, follow_up_questions: null, answer: null, images: [], results: [{ url: string, title: string, content: string, score: number, raw_content: null }], response_time: number, request_id: string }` | Verified 2026-06-10 from the sideloaded taskpane Phase 0 diagnostics surface. Endpoint: `https://api.tavily.com/search`; key provided by user and not committed. |
 
 **Gate decision:** Tavily passed browser-side CORS/auth verification, so Phase 1 may proceed with `web_search` in scope for the BYOK Tavily path.
+
+## Appendix B — AC-11 manual sideload checklist
+
+Automated acceptance criteria AC-1 through AC-10 are covered by the Vitest suite and static genericity guard. AC-11 remains the manual release gate and must be filled with user-confirmed sideload runs before this feature is considered fully done.
+
+| Scenario | Domain/source family | Required flow | Status | Evidence/notes |
+|---|---|---|---|---|
+| Public CSV import | Open-data CSV or API-exported CSV | search → choice menu → preview → full fetch → confirmed `write_range` | Pending confirmation | |
+| Public JSON import | Public JSON API | search → choice menu → preview → full fetch → confirmed `write_range` | Pending confirmation | |
+| Public table import | Public HTML/table source | search → choice menu → preview → full fetch → confirmed `write_range` | Pending confirmation | |
+
+Manual notes so far: a long web workflow that exceeded the original 25-iteration cap was user-tested after adding same-session continuation and was reported as working ("looks good to me"). This validates the continuation fix, but does not by itself satisfy AC-11's three unrelated-domain scenario requirement.
