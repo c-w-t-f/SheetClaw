@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import {
   Body1,
   Body1Strong,
@@ -8,7 +9,6 @@ import {
   MessageBarActions,
   MessageBarBody,
   Spinner,
-  Switch,
   Textarea,
   tokens,
 } from '@fluentui/react-components';
@@ -40,6 +40,40 @@ const composerActionStyle = {
   height: 32,
   padding: 0,
 };
+
+function composerPillStyle(active: boolean, unavailable = false): CSSProperties {
+  return {
+    height: 32,
+    minWidth: 0,
+    borderRadius: 999,
+    padding: '0 12px',
+    border: `1px solid ${active ? '#4f7fe8' : tokens.colorNeutralStroke1}`,
+    background: active ? '#162033' : tokens.colorNeutralBackground1,
+    color: active ? '#6ea2ff' : tokens.colorNeutralForeground2,
+    fontWeight: 600,
+    opacity: unavailable ? 0.55 : 1,
+    cursor: unavailable ? 'not-allowed' : 'pointer',
+  };
+}
+
+function PillIcon({ children }: { children: ReactNode }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 16,
+        height: 16,
+        lineHeight: 1,
+        fontSize: 13,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
 
 export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target?: 'search') => void }) {
   const [input, setInput] = useState('');
@@ -286,32 +320,37 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
           justifyContent: 'space-between',
           gap: 8,
         }}>
-          <Switch
-            label="Auto-approve"
-            checked={appConfig.autoApproveSession}
-            onChange={(_, d) => setAppConfig({ autoApproveSession: d.checked })}
-          />
-          <Button
-            size="small"
-            appearance={effectiveSearchEnabled ? 'primary' : 'secondary'}
-            aria-pressed={effectiveSearchEnabled}
-            aria-disabled={!searchProviderReady}
-            style={{
-              opacity: searchProviderReady ? 1 : 0.55,
-              cursor: searchProviderReady ? 'pointer' : 'not-allowed',
-            }}
-            onClick={() => {
-              if (!searchProviderReady) {
-                setWebSearchEnabled(false);
-                setSearchHint(true);
-                return;
-              }
-              setSearchHint(false);
-              setWebSearchEnabled(!webSearchEnabled);
-            }}
-          >
-            Search
-          </Button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <Button
+              size="small"
+              appearance="secondary"
+              aria-pressed={effectiveSearchEnabled}
+              aria-disabled={!searchProviderReady}
+              style={composerPillStyle(effectiveSearchEnabled, !searchProviderReady)}
+              icon={<PillIcon>🌐</PillIcon>}
+              onClick={() => {
+                if (!searchProviderReady) {
+                  setWebSearchEnabled(false);
+                  setSearchHint(true);
+                  return;
+                }
+                setSearchHint(false);
+                setWebSearchEnabled(!webSearchEnabled);
+              }}
+            >
+              Search
+            </Button>
+            <Button
+              size="small"
+              appearance="secondary"
+              aria-pressed={appConfig.autoApproveSession}
+              style={composerPillStyle(appConfig.autoApproveSession)}
+              icon={<PillIcon>✓</PillIcon>}
+              onClick={() => setAppConfig({ autoApproveSession: !appConfig.autoApproveSession })}
+            >
+              Auto-approve
+            </Button>
+          </div>
           {isRunning
             ? (
               <Button
