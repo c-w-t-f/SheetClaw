@@ -239,4 +239,8 @@ How the search-provider decision plays out per audience. The governing fact: **S
 
 ## Appendix A — Phase 0 results
 
-*(to be filled during the spike)*
+| Provider | CORS/preflight | Auth mechanism | Status | Free-tier limits / pricing | Response shape sample | Notes |
+|---|---|---|---|---|---|---|
+| Tavily | pass / pass | bearer-header | 200 | Free-tier key; spec expectation: about 1,000 searches/month | `{ query: string, follow_up_questions: null, answer: null, images: [], results: [{ url: string, title: string, content: string, score: number, raw_content: null }], response_time: number, request_id: string }` | Verified 2026-06-10 from the sideloaded taskpane Phase 0 diagnostics surface. Endpoint: `https://api.tavily.com/search`; key provided by user and not committed. |
+
+**Gate decision:** Tavily passed browser-side CORS/auth verification, so Phase 1 may proceed with `web_search` in scope for the BYOK Tavily path.
