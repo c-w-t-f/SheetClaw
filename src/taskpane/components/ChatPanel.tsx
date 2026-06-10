@@ -152,6 +152,7 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
       padding: 12,
       gap: 8,
       boxSizing: 'border-box',
+      overflowX: 'hidden',
     }}>
       {initError && (
         <MessageBar intent="error">
@@ -185,6 +186,7 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
         flex: '1 1 auto',
         minHeight: 0,
         overflowY: 'auto',
+        overflowX: 'hidden',
         display: 'flex',
         flexDirection: 'column',
         gap: 8,
@@ -394,7 +396,15 @@ function MessageBubble({ message }: { message: Message }) {
 
   if (message.role === 'tool_call') {
     return (
-      <Caption1 style={{ color: tokens.colorNeutralForeground3, fontFamily: 'monospace' }}>
+      <Caption1 style={{
+        display: 'block',
+        minWidth: 0,
+        maxWidth: '100%',
+        color: tokens.colorNeutralForeground3,
+        fontFamily: 'monospace',
+        whiteSpace: 'pre-wrap',
+        overflowWrap: 'anywhere',
+      }}>
         Tool: {message.toolCall.name}({JSON.stringify(message.toolCall.arguments).slice(0, 80)})
       </Caption1>
     );
@@ -402,7 +412,15 @@ function MessageBubble({ message }: { message: Message }) {
   if (message.role === 'tool') {
     const ok = message.result.ok;
     return (
-      <Caption1 style={{ color: ok ? tokens.colorPaletteGreenForeground1 : tokens.colorPaletteRedForeground1, fontFamily: 'monospace' }}>
+      <Caption1 style={{
+        display: 'block',
+        minWidth: 0,
+        maxWidth: '100%',
+        color: ok ? tokens.colorPaletteGreenForeground1 : tokens.colorPaletteRedForeground1,
+        fontFamily: 'monospace',
+        whiteSpace: 'pre-wrap',
+        overflowWrap: 'anywhere',
+      }}>
         {ok ? 'OK' : 'ERR'} {message.toolCallId.slice(0, 12)}... {ok ? JSON.stringify(message.result.data).slice(0, 80) : message.result.error?.message}
       </Caption1>
     );
@@ -426,6 +444,8 @@ function MessageBubble({ message }: { message: Message }) {
       borderRadius: 8,
       padding: '8px 12px',
       whiteSpace: 'pre-wrap',
+      minWidth: 0,
+      overflowWrap: 'anywhere',
       wordBreak: 'break-word',
     }}>
       <Body1>{message.role === 'assistant' || message.role === 'user' ? message.text : ''}</Body1>
