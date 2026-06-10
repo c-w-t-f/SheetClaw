@@ -47,6 +47,19 @@ const API_KEY_PROVIDERS: { key: ApiKeyProvider; label: string }[] = [
   { key: 'llama', label: 'Llama' },
 ];
 
+const API_KEY_SIGNUP_LINKS: Partial<Record<ProviderKey, { label: string; url: string }>> = {
+  openai: { label: 'Get an OpenAI key', url: 'https://platform.openai.com/api-keys' },
+  anthropic: { label: 'Get an Anthropic key', url: 'https://console.anthropic.com/settings/keys' },
+  deepseek: { label: 'Get a DeepSeek key', url: 'https://platform.deepseek.com/api_keys' },
+  groq: { label: 'Get a Groq key', url: 'https://console.groq.com/keys' },
+  mistral: { label: 'Get a Mistral key', url: 'https://console.mistral.ai/api-keys' },
+  together: { label: 'Get a Together AI key', url: 'https://api.together.ai/settings/api-keys' },
+  kimi: { label: 'Get a Kimi key', url: 'https://platform.moonshot.ai/console/api-keys' },
+  glm: { label: 'Get a GLM key', url: 'https://z.ai/manage-apikey/apikey-list' },
+  qwen: { label: 'Get a Qwen key', url: 'https://bailian.console.aliyun.com/' },
+  llama: { label: 'Get a Llama key', url: 'https://llama.developer.meta.com/' },
+};
+
 const STATIC_MODELS: Partial<Record<ProviderKey, string[]>> = {
   openai: [
     'gpt-4o', 'gpt-4o-mini',
@@ -448,6 +461,7 @@ function ProviderForm({
   const storedCredential = getAuthCredential(auth);
   const keySet = !!storedCredential;
   const supportsOpenRouterOAuth = providerKey === 'generic' && isOpenRouterBaseUrl(baseUrl);
+  const signupLink = API_KEY_SIGNUP_LINKS[providerKey];
 
   useEffect(() => {
     const canLoad = providerKey === 'ollama'
@@ -553,6 +567,12 @@ function ProviderForm({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {showActiveButton && (
         <ActiveProviderButton isActive={isActive} onSetActive={onSetActive} />
+      )}
+
+      {signupLink && (
+        <a href={signupLink.url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
+          {signupLink.label}
+        </a>
       )}
 
       <Field label="Base URL">
