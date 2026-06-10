@@ -1,6 +1,10 @@
 import { tavilyProvider } from './tavily';
+import { googleCseProvider } from './google-cse';
+import { jinaProvider } from './jina';
+import { searxngProvider } from './searxng';
+import { wikipediaProvider } from './wikipedia';
 
-export type SearchProviderId = 'tavily';
+export type SearchProviderId = 'tavily' | 'google-cse' | 'jina' | 'searxng' | 'wikipedia';
 export type WebAccessProvider = 'none' | SearchProviderId;
 
 export interface SearchResult {
@@ -14,17 +18,32 @@ export interface SearchProviderAdapter {
   id: SearchProviderId;
   label: string;
   requiresKey: boolean;
+  /** Google CSE needs a Programmable Search Engine id (cx) in addition to the API key. */
+  requiresEngineId?: boolean;
   endpoint: string;
   signupUrl: string;
   search(
     query: string,
-    opts: { maxResults: number; apiKey: string; baseUrl?: string; signal: AbortSignal; fetchImpl?: typeof fetch }
+    opts: {
+      maxResults: number;
+      apiKey: string;
+      baseUrl?: string;
+      engineId?: string;
+      signal: AbortSignal;
+      fetchImpl?: typeof fetch;
+    }
   ): Promise<SearchResult[]>;
 }
 
 export const SEARCH_PROVIDERS: Record<SearchProviderId, SearchProviderAdapter> = {
   tavily: tavilyProvider,
+  'google-cse': googleCseProvider,
+  jina: jinaProvider,
+  searxng: searxngProvider,
+  wikipedia: wikipediaProvider,
 };
+
+export const SEARCH_PROVIDER_IDS = Object.keys(SEARCH_PROVIDERS) as SearchProviderId[];
 
 export const READER_PROVIDER_ENDPOINT = 'https://r.jina.ai/';
 

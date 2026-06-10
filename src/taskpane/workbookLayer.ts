@@ -19,6 +19,7 @@ export function getTaskpaneWorkbookLayer(): ReturnType<typeof createWorkbookLaye
       getApiKey: (provider: SearchProviderId) =>
         getAuthCredential(useStore.getState().searchAuthStates[provider]),
       getBaseUrl: () => useStore.getState().appConfig.webAccess.baseUrl,
+      getEngineId: () => useStore.getState().appConfig.webAccess.engineId,
     }));
   }
   return layer;

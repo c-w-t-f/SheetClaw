@@ -80,7 +80,8 @@ Web tools do **not** live under `src/workbook/tools/` and must not run inside `E
 
 ```ts
 interface SearchProviderAdapter {
-  id: string;                       // 'tavily' | 'google-cse' | 'jina' | 'searxng' | 'wikipedia' | 'custom'
+  id: string;                       // 'tavily' | 'google-cse' | 'jina' | 'searxng' | 'wikipedia'
+                                    // ('custom' is covered by the per-provider Base URL override)
   label: string;
   requiresKey: boolean;
   search(query: string, opts: { maxResults: number; apiKey: string; baseUrl?: string; signal: AbortSignal }):
@@ -242,8 +243,12 @@ How the search-provider decision plays out per audience. The governing fact: **S
 | Provider | CORS/preflight | Auth mechanism | Status | Free-tier limits / pricing | Response shape sample | Notes |
 |---|---|---|---|---|---|---|
 | Tavily | pass / pass | bearer-header | 200 | Free-tier key; spec expectation: about 1,000 searches/month | `{ query: string, follow_up_questions: null, answer: null, images: [], results: [{ url: string, title: string, content: string, score: number, raw_content: null }], response_time: number, request_id: string }` | Verified 2026-06-10 from the sideloaded taskpane Phase 0 diagnostics surface. Endpoint: `https://api.tavily.com/search`; key provided by user and not committed. |
+| Google Programmable Search | **not yet verified from taskpane** | `X-Goog-Api-Key` header + `cx` query param | — | free 100 queries/day | `{ items: [{ title, link, snippet }] }` | Adapter implemented 2026-06-10; needs an Engine ID (cx) configured in Settings. Verify with the Settings "Test key" button before relying on it. |
+| Jina `s.jina.ai` | **not yet verified from taskpane** | bearer-header (`X-Respond-With: no-content`) | — | free starter quota | `{ data: [{ title, url, description, date? }] }` | Adapter implemented 2026-06-10. Verify with "Test key". |
+| SearXNG (self-hosted) | **not yet verified from taskpane** | none (instance URL in Settings; default `http://localhost:8080/search`) | — | free, unlimited | `{ results: [{ title, url, content, publishedDate? }] }` | Adapter implemented 2026-06-10. Instance must enable `format=json` and CORS. Verify with "Test search". |
+| Wikipedia/MediaWiki | **not yet verified from taskpane** | none (keyless, `origin=*`) | — | free | `{ query: { search: [{ title, snippet }] } }` | Adapter implemented 2026-06-10; encyclopedic only. Verify with "Test search". |
 
-**Gate decision:** Tavily passed browser-side CORS/auth verification, so Phase 1 may proceed with `web_search` in scope for the BYOK Tavily path.
+**Gate decision:** Tavily passed browser-side CORS/auth verification, so Phase 1 may proceed with `web_search` in scope for the BYOK Tavily path. The four later adapters are implemented against documented API shapes but keep "not yet verified" status until each passes the Settings test button from a sideloaded taskpane. Brave Search API remains unimplemented (expected CORS failure, §11.3); `custom` is covered by each adapter's Base URL override rather than a dedicated provider.
 
 ## Appendix B — AC-11 manual sideload checklist
 

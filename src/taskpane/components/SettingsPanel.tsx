@@ -196,6 +196,7 @@ export default function SettingsPanel({ initialTab }: { initialTab?: SettingsTab
           <SearchSettingsForm
             provider={appConfig.webAccess.provider}
             baseUrl={appConfig.webAccess.baseUrl ?? ''}
+            engineId={appConfig.webAccess.engineId ?? ''}
             readerFallback={appConfig.webAccess.readerFallback}
             searchAuthStates={searchAuthStates}
             onSaveConfig={(patch) => setAppConfig({ webAccess: { ...appConfig.webAccess, ...patch } })}
@@ -255,6 +256,7 @@ interface ProviderFormProps {
 function SearchSettingsForm({
   provider,
   baseUrl,
+  engineId,
   readerFallback,
   searchAuthStates,
   onSaveConfig,
@@ -263,9 +265,10 @@ function SearchSettingsForm({
 }: {
   provider: WebAccessProvider;
   baseUrl: string;
+  engineId: string;
   readerFallback: boolean;
   searchAuthStates: Record<SearchProviderId, AuthState>;
-  onSaveConfig: (patch: { provider?: WebAccessProvider; baseUrl?: string; readerFallback?: boolean }) => void;
+  onSaveConfig: (patch: { provider?: WebAccessProvider; baseUrl?: string; engineId?: string; readerFallback?: boolean }) => void;
   onSaveKey: (provider: SearchProviderId, key: string) => void;
   onClearKey: (provider: SearchProviderId) => void;
 }) {
@@ -275,6 +278,7 @@ function SearchSettingsForm({
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [localBaseUrl, setLocalBaseUrl] = useState(baseUrl);
+  const [localEngineId, setLocalEngineId] = useState(engineId);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [testMsg, setTestMsg] = useState('');
   const keySet = !!getAuthCredential(auth);
@@ -282,6 +286,10 @@ function SearchSettingsForm({
   useEffect(() => {
     setLocalBaseUrl(baseUrl);
   }, [baseUrl]);
+
+  useEffect(() => {
+    setLocalEngineId(engineId);
+  }, [engineId]);
 
   function saveKey() {
     if (!apiKey.trim()) return;
@@ -300,6 +308,7 @@ function SearchSettingsForm({
         maxResults: 1,
         apiKey: key,
         baseUrl: localBaseUrl || undefined,
+        engineId: localEngineId || undefined,
         signal: new AbortController().signal,
       });
       setTestStatus('ok');
@@ -331,33 +340,49 @@ function SearchSettingsForm({
             Search is optional and uses your own provider key. It is off for each new session until you enable it in Chat.
           </Caption1>
           <a href={adapter.signupUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
-            Get a {adapter.label} key
+            {adapter.requiresKey ? `Get a ${adapter.label} key` : `${adapter.label} setup guide`}
           </a>
 
-          <Field label="API Key">
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          {adapter.requiresKey && (
+            <Field label="API Key">
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <Input
+                  type={showKey ? 'text' : 'password'}
+                  placeholder={keySet ? auth.apiKeyMasked : 'Enter search API key...'}
+                  value={apiKey}
+                  onChange={(_, d) => setApiKey(d.value)}
+                  size="small"
+                  style={{ flex: 1, fontFamily: 'monospace', fontSize: 12 }}
+                />
+                <Button size="small" appearance="subtle" onClick={() => setShowKey(s => !s)}>
+                  {showKey ? 'Hide' : 'Show'}
+                </Button>
+                {keySet && (
+                  <Button size="small" appearance="subtle" onClick={() => onClearKey(selectedProvider)}>Clear</Button>
+                )}
+              </div>
+            </Field>
+          )}
+
+          {adapter.requiresEngineId && (
+            <Field label="Engine ID (cx)">
               <Input
-                type={showKey ? 'text' : 'password'}
-                placeholder={keySet ? auth.apiKeyMasked : 'Enter search API key...'}
-                value={apiKey}
-                onChange={(_, d) => setApiKey(d.value)}
+                value={localEngineId}
+                onChange={(_, d) => setLocalEngineId(d.value)}
+                onBlur={() => onSaveConfig({ engineId: localEngineId })}
+                placeholder="Programmable Search Engine id"
                 size="small"
-                style={{ flex: 1, fontFamily: 'monospace', fontSize: 12 }}
+                style={{ fontFamily: 'monospace', fontSize: 12 }}
               />
-              <Button size="small" appearance="subtle" onClick={() => setShowKey(s => !s)}>
-                {showKey ? 'Hide' : 'Show'}
-              </Button>
-              {keySet && (
-                <Button size="small" appearance="subtle" onClick={() => onClearKey(selectedProvider)}>Clear</Button>
-              )}
-            </div>
-          </Field>
+            </Field>
+          )}
 
           <Field label="Base URL (optional)">
             <Input
               value={localBaseUrl}
               onChange={(_, d) => setLocalBaseUrl(d.value)}
               onBlur={() => onSaveConfig({ baseUrl: localBaseUrl })}
+              placeholder={adapter.endpoint}
               size="small"
               style={{ fontFamily: 'monospace', fontSize: 12 }}
             />
@@ -377,10 +402,10 @@ function SearchSettingsForm({
             <Button
               appearance="secondary"
               size="small"
-              disabled={testStatus === 'testing' || (!apiKey && !keySet)}
+              disabled={testStatus === 'testing' || (adapter.requiresKey && !apiKey && !keySet)}
               onClick={() => void testKey()}
             >
-              {testStatus === 'testing' ? 'Testing...' : 'Test key'}
+              {testStatus === 'testing' ? 'Testing...' : adapter.requiresKey ? 'Test key' : 'Test search'}
             </Button>
           </div>
 

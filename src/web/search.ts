@@ -23,6 +23,7 @@ export interface WebSearchHandlerOptions {
   getProvider: () => WebAccessProvider;
   getApiKey: (provider: SearchProviderId) => string;
   getBaseUrl?: (provider: SearchProviderId) => string | undefined;
+  getEngineId?: (provider: SearchProviderId) => string | undefined;
   fetchImpl?: typeof fetch;
 }
 
@@ -45,6 +46,7 @@ export function createWebSearchHandler(options: WebSearchHandlerOptions): ToolHa
       maxResults,
       apiKey,
       baseUrl: options.getBaseUrl?.(provider.id),
+      engineId: options.getEngineId?.(provider.id),
       signal: controller.signal,
       fetchImpl: options.fetchImpl,
     });

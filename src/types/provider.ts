@@ -60,6 +60,8 @@ export interface AuthState {
 export interface WebAccessConfig {
   provider: WebAccessProvider;
   baseUrl?: string;
+  /** Google CSE Programmable Search Engine id (cx); unused by other providers. */
+  engineId?: string;
   readerFallback: boolean;
 }
 

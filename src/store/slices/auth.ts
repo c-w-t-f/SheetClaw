@@ -1,5 +1,6 @@
 import type { StateCreator } from 'zustand';
 import type { AuthState, ProviderKey, SearchProviderId } from '../../types';
+import { SEARCH_PROVIDERS as SEARCH_PROVIDER_REGISTRY, SEARCH_PROVIDER_IDS } from '../../web/providers';
 import { storage } from '../storage';
 
 const AUTH_KEY = (p: ProviderKey) => `xl.auth.${p}`;
@@ -51,7 +52,7 @@ const ALL_PROVIDERS: ProviderKey[] = [
   'llama',
 ];
 
-const SEARCH_PROVIDERS: SearchProviderId[] = ['tavily'];
+const SEARCH_PROVIDERS: SearchProviderId[] = SEARCH_PROVIDER_IDS;
 
 export const createAuthSlice: StateCreator<AuthSlice> = (set, get) => ({
   authStates: Object.fromEntries(
@@ -159,6 +160,7 @@ export const createAuthSlice: StateCreator<AuthSlice> = (set, get) => ({
   },
 
   isSearchProviderReady(provider) {
+    if (SEARCH_PROVIDER_REGISTRY[provider]?.requiresKey === false) return true;
     const auth = get().searchAuthStates[provider];
     return auth?.state === 'authenticated';
   },
