@@ -544,7 +544,7 @@ function runWsConnectDiagnostic(url: string, token: string): Promise<Record<stri
             minProtocol: 4,
             maxProtocol: 4,
             client: {
-              id: 'sheetclaw-phase0-diagnostic',
+              id: 'cli',
               version: '0.1.0',
               platform: 'browser',
               mode: 'operator',
