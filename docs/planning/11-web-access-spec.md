@@ -1,6 +1,6 @@
 # Document 11 — Web Access & Scope Clarification Spec
 
-Spec for the reattempt of the feature first tried in `5a267ba` (see [post-mortem](../postmortems/2026-06-10-web-access-attempt.md)). Two capabilities:
+Spec for the reattempt of the feature first tried in `5a267ba` (abandoned: its search pipeline could not work generically and was propped up by results hardcoded for a single demo scenario). Two capabilities:
 
 1. **Web access** — the agent can search the web and fetch public URLs to bring external data into the workbook.
 2. **Scope clarification** — when an external-data request is ambiguous or large, the agent pauses and asks the user to narrow scope via a structured choice menu instead of downloading speculatively.
@@ -52,7 +52,7 @@ Candidates, by cost tier:
 
 A local sidecar proxy (planning suite decision D1) would also unlock free search by moving fetches out of the browser entirely; it is out of scope here but noted as the escape hatch if every browser-side candidate fails.
 
-Record results in Appendix A. **Gate:** at least one search provider must pass browser-side, else `web_search` is descoped and only `fetch_url` ships. Do not start Phase 1 with this unresolved — discovering it mid-build is root cause #3 of the last failure.
+Record results in Appendix A. **Gate:** at least one search provider must pass browser-side, else `web_search` is descoped and only `fetch_url` ships. Do not start Phase 1 with this unresolved — the last attempt discovered it mid-build and papered over it with hardcoded results instead of escalating it as a design decision.
 
 ## 11.4 Architecture
 
@@ -201,11 +201,11 @@ Spec-first: these tests are written against this document, not against the imple
 | AC-10 | Genericity: a test greps `src/` for hostnames not in the provider registry allowlist and for any string literal also appearing in the demo scenario list (maintained in the test). Build fails on hit | static |
 | AC-11 | Manual sideload: three end-to-end scenarios on unrelated domains (e.g. World Bank indicator CSV, a public JSON API, a Wikipedia table), each exercising search → choice menu (options visibly derived from live results) → preview → full fetch → confirmed `write_range` | manual checklist |
 
-AC-11's three scenarios must be *named in the PR description with screenshots*; one scenario passing is explicitly insufficient to merge (root cause #2 of the last failure).
+AC-11's three scenarios must be *named in the PR description with screenshots*; one scenario passing is explicitly insufficient to merge — the last attempt was validated against a single demo prompt, which is exactly how the hardcoding crept in.
 
 ## 11.10 Build sequencing
 
-**Precondition:** master HEAD is currently the failed attempt (`5a267ba`). Revert it (or branch the reattempt from `6cea710`) before Phase 1; do not build on top of it. Salvageable pieces are cherry-picked per the list below, not inherited.
+**Precondition:** build on master (rolled back to `6cea710` + this spec). The failed attempt is preserved on the local `attempt/web-search` branch (`5a267ba`); do not build on top of it — salvageable pieces are cherry-picked per the list below, not inherited.
 
 | Phase | Scope | Gate |
 |---|---|---|

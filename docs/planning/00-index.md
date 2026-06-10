@@ -18,7 +18,7 @@ shared-folder manifest. No AppSource distribution.
 | 8 | [UI/UX Specification](08-ui-ux-spec.md) | Layout, states, interactions per surface |
 | 9 | [Risk Register](09-risk-register.md) | Risk, likelihood, impact, mitigation, validation phase |
 | 10 | [Build Sequencing & Dependency Map](10-build-sequencing.md) | Ordered build sequence, gates, references, complexity |
-| 11 | [Web Access & Scope Clarification Spec](11-web-access-spec.md) | web_search/fetch_url tools, request_user_choice menu flow, provider config, caps, genericity rules (reattempt of `5a267ba`; see [post-mortem](../postmortems/2026-06-10-web-access-attempt.md)) |
+| 11 | [Web Access & Scope Clarification Spec](11-web-access-spec.md) | web_search/fetch_url tools, request_user_choice menu flow, provider config, caps, genericity rules (reattempt of `5a267ba`) |
 
 ## Decision log (items marked [DECISION REQUIRED] across the suite)
 
