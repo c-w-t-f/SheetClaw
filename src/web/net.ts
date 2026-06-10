@@ -2,8 +2,17 @@ import { ToolNetworkError, ToolValidationError } from '../workbook/executor';
 
 export const FETCH_TIMEOUT_MS = 15_000;
 export const MAX_BODY_BYTES = 1_000_000;
+const PROBE_TIMEOUT_MS = 5_000;
 
 const ALLOWED_PORTS = new Set(['', '80', '443', '8080']);
+
+// Hosts confirmed CORS-blocked this session (learned at runtime, never hardcoded).
+// Lets repeat fetches fail fast instead of burning the full timeout again.
+const corsBlockedHosts = new Set<string>();
+
+export function clearHostStatusCache(): void {
+  corsBlockedHosts.clear();
+}
 
 export interface FetchResponse {
   url: string;
@@ -57,10 +66,20 @@ export async function fetchTextWithGuards(
   const fetchImpl = opts.fetchImpl ?? fetch;
   const timeoutMs = opts.timeoutMs ?? FETCH_TIMEOUT_MS;
   const maxBytes = opts.maxBytes ?? MAX_BODY_BYTES;
+  const host = original.hostname.toLowerCase();
+
+  if (corsBlockedHosts.has(host)) {
+    throw new ToolNetworkError(
+      `Blocked by CORS (cached): ${host} was already confirmed CORS-blocked earlier in this session. ` +
+      'Do not retry this host; choose a different source or ask the user how to proceed.'
+    );
+  }
+
   const controller = new AbortController();
   const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
 
   const abortFromParent = () => controller.abort();
+  if (opts.signal?.aborted) controller.abort();
   opts.signal?.addEventListener('abort', abortFromParent, { once: true });
 
   try {
@@ -83,12 +102,61 @@ export async function fetchTextWithGuards(
       text: new TextDecoder().decode(bytes),
     };
   } catch (e) {
-    if (e instanceof ToolValidationError) throw e;
+    if (e instanceof ToolValidationError || e instanceof ToolNetworkError) throw e;
+
+    // Parent abort (user stop): preserve abort semantics instead of inventing a network error.
+    if (opts.signal?.aborted) throw e;
+
+    if (isAbortError(e)) {
+      throw new ToolNetworkError(
+        `Request timed out after ${timeoutMs} ms. The host did not respond in time; one retry or a different source is reasonable.`
+      );
+    }
+
+    if (e instanceof TypeError) {
+      // fetch rejects with TypeError for both CORS blocks and DNS/offline failures.
+      // A no-cors probe disambiguates: it ignores CORS, so it resolves iff the host is reachable.
+      const reachable = await probeReachability(original, fetchImpl);
+      if (reachable) {
+        corsBlockedHosts.add(host);
+        throw new ToolNetworkError(
+          `Blocked by CORS: ${host} is reachable but does not allow browser requests from the add-in. ` +
+          'Do not retry this host; choose a different source, or the user can enable the reader fallback in Settings.'
+        );
+      }
+      throw new ToolNetworkError(
+        `Network unreachable: could not connect to ${host} (DNS failure or no connectivity). Do not retry immediately.`
+      );
+    }
+
     const message = e instanceof Error ? e.message : String(e);
-    throw new ToolNetworkError(`Network request failed or was blocked by CORS; this host cannot be fetched from the add-in. ${message}`);
+    throw new ToolNetworkError(`Network request failed: ${message}`);
   } finally {
     globalThis.clearTimeout(timeout);
     opts.signal?.removeEventListener('abort', abortFromParent);
+  }
+}
+
+function isAbortError(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && (e as { name?: unknown }).name === 'AbortError';
+}
+
+async function probeReachability(url: URL, fetchImpl: typeof fetch): Promise<boolean> {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+  try {
+    const response = await fetchImpl(url.toString(), {
+      method: 'GET',
+      mode: 'no-cors',
+      redirect: 'follow',
+      signal: controller.signal,
+    });
+    response.body?.cancel().catch(() => {});
+    return true;
+  } catch {
+    return false;
+  } finally {
+    globalThis.clearTimeout(timeout);
   }
 }
 
