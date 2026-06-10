@@ -122,4 +122,21 @@ src/bridge/
 
 ## Appendix A — Phase 0 results
 
-*(to be filled during the spike; include OpenClaw version, chosen surface, endpoint shapes, auth, latency)*
+Local CLI/package inspection on 2026-06-10:
+
+| Check | Result |
+|---|---|
+| OpenClaw version | `OpenClaw 2026.6.5 (5181e4f)`; global npm package `openclaw@2026.6.5`. |
+| Config file | `~/.openclaw/openclaw.json`. |
+| Gateway port/bind/mode | `gateway.port = 18789`; `gateway.bind = loopback`; `gateway.mode = local`. |
+| Gateway auth | `gateway.auth.mode = token`; shared token is stored at `gateway.auth.token` (redacted by `openclaw config get`). CLI help also accepts `OPENCLAW_GATEWAY_TOKEN`. |
+| Default configured agents | One default agent, `main`, at inspection time. A dedicated browse-only agent/profile still needs to be created before the live round-trip. |
+| Documented transport surfaces | Gateway control plane is WebSocket, protocol v4. Same port also multiplexes HTTP surfaces. `/v1/responses` can run a normal Gateway agent turn when enabled; config key `gateway.http.endpoints.responses.enabled` was absent in this install, so taskpane verification must confirm whether it is available. `/tools/invoke` is documented for direct tool invocation only, not as the delegation path. |
+| Auth on WebSocket | First frame must be `connect`; shared-secret token is sent in `connect.params.auth.token`. Installed docs also state browser-origin clients normally need device identity/challenge signing unless a local insecure-control-ui compatibility setting applies. `gateway.controlUi.allowInsecureAuth = true` in this install, but taskpane verification must confirm whether it preserves enough scope for SheetClaw. |
+| Auth on HTTP | Shared-secret token/password HTTP paths use `Authorization: Bearer <token-or-password>`. |
+| Temporary taskpane verification surface | Added under Settings -> Search -> "OpenClaw Phase 0 diagnostics". It stores no config or token and sends no gateway traffic until a user presses `Test HTTP response` or `Test WS handshake`. |
+| Reachability from taskpane webview | Pending user sideload run. Must record HTTP CORS/pass/fail and WS pass/fail. |
+| Chosen invocation surface | Pending user sideload run. Candidate A: HTTP `POST /v1/responses` with `x-openclaw-agent-id`. Candidate B: WS protocol v4 if HTTP is unavailable or CORS-blocked. |
+| Submit/correlate final answer | Pending user sideload run with gateway token and dedicated browse-only agent/profile. |
+| Mid-run cancellation support | Pending; no feature client will be written until the usable invocation surface and cancellation mechanism are confirmed. |
+| Typical one-page latency | Pending user sideload run. |
