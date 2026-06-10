@@ -127,6 +127,18 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
   function cancelConfirm() { getTaskpaneAgentLoop().resolveConfirmation('cancel'); }
   function resolveChoice(ids: string[]) { getTaskpaneAgentLoop().resolveChoice(ids); }
   function dismissChoice() { getTaskpaneAgentLoop().resolveChoice('dismiss'); }
+  async function continueRun() {
+    if (!session) return;
+    const provider = session.provider as keyof typeof providers;
+    const cfg = providers[provider] ?? providers[appConfig.activeProvider];
+    const authState = authStates[provider as keyof typeof authStates] ?? authStates[appConfig.activeProvider];
+    const client = createAdapter(cfg, authState);
+    try {
+      await getTaskpaneAgentLoop().continueCurrent(client, cfg);
+    } catch {
+      // Errors are captured inside loop.continueCurrent and written to store.
+    }
+  }
 
   async function undo() {
     if (!session) return;
@@ -141,6 +153,7 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
 
   const visibleMessages = messages.filter(m => (m as Message & { sessionId?: string }).sessionId === session?.id);
   const awaitingChoice = session?.status === 'awaiting_choice';
+  const canContinue = session?.status === 'done' && session.stopReason === 'max_iterations';
   const showEmptyState = visibleMessages.length === 0 && !isRunning && !awaitingConfirm && !awaitingChoice;
 
   return (
@@ -230,11 +243,18 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
       </div>
 
       {session && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, gap: 8 }}>
           <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>
             {session.model} | iter {session.iteration}/{session.maxIterations} | {session.totals.inputTokens + session.totals.outputTokens} tok
           </Caption1>
-          <Button size="small" appearance="subtle" onClick={() => void undo()}>Undo last write</Button>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            {canContinue && (
+              <Button size="small" appearance="primary" onClick={() => void continueRun()}>
+                Continue
+              </Button>
+            )}
+            <Button size="small" appearance="subtle" onClick={() => void undo()}>Undo last write</Button>
+          </div>
         </div>
       )}
 

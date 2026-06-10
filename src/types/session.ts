@@ -46,6 +46,7 @@ export interface AgentSession {
   pendingChange?: PendingChange;
   pendingChoice?: PendingChoice;
   webSearchEnabled: boolean;
+  stopReason?: 'max_iterations';
   tokenBudget: { used: number; window: number };
   lastError?: { code: string; message: string };
   totals: { inputTokens: number; outputTokens: number; costUsd: number };

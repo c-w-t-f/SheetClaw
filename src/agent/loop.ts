@@ -111,6 +111,49 @@ export class AgentLoop {
     this.choiceResolve = null;
   }
 
+  async continueCurrent(
+    client: LLMClient,
+    cfg: ProviderConfig,
+    additionalIterations = MAX_ITERATIONS
+  ): Promise<void> {
+    const current = useStore.getState().currentSession;
+    if (!current || current.status !== 'done' || current.stopReason !== 'max_iterations') return;
+
+    const ac = new AbortController();
+    this.abortController = ac;
+    const resumed: AgentSession = {
+      ...current,
+      status: 'building',
+      maxIterations: current.maxIterations + additionalIterations,
+      stopReason: undefined,
+    };
+    useStore.getState().updateSession({
+      status: resumed.status,
+      maxIterations: resumed.maxIterations,
+      stopReason: undefined,
+    });
+    this.append(resumed.id, msg<SystemNoticeMessage>(resumed.id, {
+      role: 'system_notice',
+      level: 'info',
+      text: `Continuing for ${additionalIterations} more iterations.`,
+    }));
+
+    const ctxBuilder = new ContextBuilder(this.registry);
+    try {
+      await this.loop(resumed, client, cfg, ctxBuilder, ac.signal);
+    } catch (e) {
+      if (ac.signal.aborted) {
+        useStore.getState().updateSession({ status: 'stopped' });
+      } else {
+        const message = e instanceof Error ? e.message : String(e);
+        useStore.getState().updateSession({ status: 'error', lastError: { code: 'LoopError', message } });
+        this.append(resumed.id, msg<SystemNoticeMessage>(resumed.id, { role: 'system_notice', level: 'error', text: `Run failed: ${message}` }));
+      }
+    } finally {
+      this.abortController = null;
+    }
+  }
+
   resolveConfirmation(decision: 'apply' | 'cancel'): void {
     this.confirmationResolve?.(decision);
     this.confirmationResolve = null;
@@ -144,7 +187,7 @@ export class AgentLoop {
       REQUEST_USER_CHOICE,
     ];
 
-    for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+    for (let iter = session.iteration; iter < session.maxIterations; iter++) {
       if (signal.aborted) return;
       useStore.getState().updateSession({ iteration: iter + 1, status: 'building' });
 
@@ -197,7 +240,7 @@ export class AgentLoop {
       } as Partial<Message>);
 
       if (!calls.length || sr.finishReason === 'stop') {
-        useStore.getState().updateSession({ status: 'done' });
+        useStore.getState().updateSession({ status: 'done', stopReason: undefined });
         return;
       }
       if (sr.finishReason === 'length') {
@@ -205,7 +248,7 @@ export class AgentLoop {
           role: 'system_notice', level: 'warn',
           text: 'Response cut off at token limit — the model may not have finished.',
         }));
-        useStore.getState().updateSession({ status: 'done' });
+        useStore.getState().updateSession({ status: 'done', stopReason: undefined });
         return;
       }
 
@@ -217,7 +260,7 @@ export class AgentLoop {
       }
     }
 
-    useStore.getState().updateSession({ status: 'done' });
+    useStore.getState().updateSession({ status: 'done', stopReason: 'max_iterations' });
     this.append(session.id, msg<SystemNoticeMessage>(session.id, {
       role: 'system_notice', level: 'warn',
       text: `Stopped after ${MAX_ITERATIONS} iterations. The task may be incomplete.`,

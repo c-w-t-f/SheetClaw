@@ -194,6 +194,48 @@ describe('AgentLoop — non-mutating tool call', () => {
     const finalAssistant = assistantMsgs[assistantMsgs.length - 1];
     expect((finalAssistant as { text: string }).text).toBe('Cell A1 contains "A".');
   });
+
+  it('can continue the same session after the iteration cap is reached', async () => {
+    const spec: ToolSpec = {
+      name: 'read_range',
+      description: 'Read cells',
+      parameters: { type: 'object', properties: { workbook_id: { type: 'string' }, sheet: { type: 'string' }, address: { type: 'string' } }, required: ['workbook_id', 'sheet', 'address'] },
+      mutating: false,
+    };
+    const executor = makeExecutor([spec], { toolCallId: 'tc', ok: true, data: { values: [['A']] } });
+    const events = [
+      ...Array.from({ length: 26 }, (_, i) =>
+        toolCallStream(`tc${i}`, 'read_range', JSON.stringify({ workbook_id: 'wb1', sheet: 'Sheet1', address: 'A1' }))
+      ),
+      textStream('Now complete.'),
+    ];
+    const client = makeMultiTurnClient(events);
+    const loop = new AgentLoop(
+      makeRegistry(),
+      executor as unknown as ToolExecutor,
+      new SnapshotManager(),
+      noop
+    );
+
+    await loop.start('Long task', SCOPE, client, CFG);
+
+    let state = useStore.getState();
+    expect(state.currentSession?.status).toBe('done');
+    expect(state.currentSession?.stopReason).toBe('max_iterations');
+    expect(state.currentSession?.iteration).toBe(25);
+    expect(state.currentSession?.maxIterations).toBe(25);
+
+    await loop.continueCurrent(client, CFG);
+
+    state = useStore.getState();
+    expect(state.currentSession?.status).toBe('done');
+    expect(state.currentSession?.stopReason).toBeUndefined();
+    expect(state.currentSession?.maxIterations).toBe(50);
+    const assistantMessages = state.messages.filter(m => m.role === 'assistant') as Array<{ text: string }>;
+    const final = assistantMessages[assistantMessages.length - 1];
+    expect(final.text).toBe('Now complete.');
+    expect(state.messages.filter(m => m.role === 'user')).toHaveLength(1);
+  });
 });
 
 describe('AgentLoop — stop()', () => {
