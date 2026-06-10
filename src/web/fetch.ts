@@ -1,7 +1,8 @@
 import type { ToolSpec } from '../types';
 import type { ToolHandler } from '../workbook/executor';
-import { ToolValidationError } from '../workbook/executor';
+import { ToolNetworkError, ToolValidationError } from '../workbook/executor';
 import { fetchTextWithGuards, type FetchResponse } from './net';
+import { READER_PROVIDER_ENDPOINT } from './providers';
 
 type FetchFormat = 'auto' | 'text' | 'json' | 'csv';
 type FetchMode = 'preview' | 'full';
@@ -32,7 +33,7 @@ export const FETCH_URL: ToolSpec = {
 
 export interface FetchUrlOptions {
   fetchImpl?: typeof fetch;
-  readerFallback?: boolean;
+  readerFallback?: boolean | (() => boolean);
   signal?: AbortSignal;
 }
 
@@ -53,12 +54,20 @@ export async function handleFetchUrlWithOptions(
   const requestedFormat = optionalEnum<FetchFormat>(args.format, 'format', ['auto', 'text', 'json', 'csv']) ?? 'auto';
   const maxChars = clampMaxChars(args.max_chars, mode);
 
-  const direct = await fetchTextWithGuards(url, {
-    fetchImpl: options.fetchImpl,
-    signal: options.signal,
-  });
-
-  return formatFetchResult(direct, requestedFormat, mode, maxChars, 'direct');
+  try {
+    const direct = await fetchTextWithGuards(url, {
+      fetchImpl: options.fetchImpl,
+      signal: options.signal,
+    });
+    return formatFetchResult(direct, requestedFormat, mode, maxChars, 'direct');
+  } catch (e) {
+    if (!(e instanceof ToolNetworkError) || !readerFallbackEnabled(options.readerFallback)) throw e;
+    const reader = await fetchTextWithGuards(`${READER_PROVIDER_ENDPOINT}${url}`, {
+      fetchImpl: options.fetchImpl,
+      signal: options.signal,
+    });
+    return formatFetchResult(reader, requestedFormat, mode, maxChars, 'reader');
+  }
 }
 
 function formatFetchResult(
@@ -235,4 +244,8 @@ function describeJsonSize(value: unknown): string {
   if (Array.isArray(value)) return `${value.length} array items`;
   if (value && typeof value === 'object') return `${Object.keys(value).length} top-level keys`;
   return 'JSON value is too large';
+}
+
+function readerFallbackEnabled(value: FetchUrlOptions['readerFallback']): boolean {
+  return typeof value === 'function' ? value() : !!value;
 }

@@ -47,6 +47,11 @@
         model name.
       </li>
       <li>
+        <strong>Optional search configuration</strong> — the web search provider you
+        choose, any optional base URL, reader-fallback preference, and the search API
+        key you enter in Settings.
+      </li>
+      <li>
         <strong>Usage history</strong> — estimated token counts and costs derived from
         your chat sessions, stored as daily buckets. No message content is retained.
       </li>
@@ -81,6 +86,21 @@
       Supported providers include Ollama (local, no data leaves your device), OpenAI,
       Anthropic, OpenRouter, DeepSeek, Groq, Mistral, Together AI, Kimi, GLM, Qwen,
       Llama, and any compatible endpoint you configure.
+    </p>
+
+    <h2>Optional web search and URL fetching</h2>
+    <p>
+      Web access is off by default. If you configure a search provider key in Settings
+      and enable Search for a chat session, SheetClaw may send search queries directly
+      from your device to the provider you selected. Search result links and snippets
+      may then be sent to your configured LLM provider as part of the chat context.
+    </p>
+    <p>
+      If the agent fetches a URL, your device sends a request directly to that public
+      website. If you enable reader fallback, a failed direct fetch may be retried
+      through the configured reader service so the page can be converted into text.
+      SheetClaw does not operate a proxy server and does not retain a copy of fetched
+      pages or search queries.
     </p>
 
     <h2>Data not collected</h2>

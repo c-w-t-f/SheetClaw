@@ -14,9 +14,8 @@ import SettingsPanel from './components/SettingsPanel';
 import type { SettingsTabKey } from './components/SettingsPanel';
 import AboutPanel from './components/AboutPanel';
 import Footer from './components/Footer';
-import WebProviderSpikePanel from './components/WebProviderSpikePanel';
 
-type TabId = 'chat' | 'usage' | 'settings' | 'web-spike' | 'about';
+type TabId = 'chat' | 'usage' | 'settings' | 'about';
 
 export default function App() {
   const [tab, setTab] = useState<TabId>('chat');
@@ -57,7 +56,6 @@ export default function App() {
         <Tab value="chat">Chat</Tab>
         <Tab value="usage">Usage</Tab>
         <Tab value="settings">Settings</Tab>
-        <Tab value="web-spike">Web Spike</Tab>
         <Tab value="about">About</Tab>
       </TabList>
 
@@ -67,7 +65,6 @@ export default function App() {
         {tab === 'chat'     && <ChatPanel onOpenSettings={(target) => { setSettingsTab(target); setTab('settings'); }} />}
         {tab === 'usage'    && <UsageDashboard />}
         {tab === 'settings' && <SettingsPanel initialTab={settingsTab} />}
-        {tab === 'web-spike' && <WebProviderSpikePanel />}
         {tab === 'about'    && <AboutPanel />}
       </div>
 

@@ -11,7 +11,9 @@ let layer: ReturnType<typeof createWorkbookLayer> | null = null;
 export function getTaskpaneWorkbookLayer(): ReturnType<typeof createWorkbookLayer> {
   if (!layer) {
     layer = createWorkbookLayer();
-    layer.executor.register(FETCH_URL, createFetchUrlHandler());
+    layer.executor.register(FETCH_URL, createFetchUrlHandler({
+      readerFallback: () => useStore.getState().appConfig.webAccess.readerFallback,
+    }));
     layer.executor.register(WEB_SEARCH, createWebSearchHandler({
       getProvider: () => useStore.getState().appConfig.webAccess.provider,
       getApiKey: (provider: SearchProviderId) =>
