@@ -18,6 +18,7 @@ export interface ToolResult {
       | 'RangeError'
       | 'OfficeApiError'
       | 'PermissionDenied'
+      | 'NetworkError'
       | 'Unsupported';
     message: string;
     details?: unknown;
@@ -31,6 +32,7 @@ export interface ToolSpec {
   description: string;
   parameters: JSONSchemaObject;
   mutating: boolean;
+  runtime?: 'excel' | 'none';
 }
 
 export interface JSONSchemaObject {

@@ -17,6 +17,13 @@ export class ToolValidationError extends Error {
   }
 }
 
+export class ToolNetworkError extends Error {
+  constructor(message: string, public details?: unknown) {
+    super(message);
+    this.name = 'ToolNetworkError';
+  }
+}
+
 // ── Lightweight arg validation ─────────────────────────────────────────────
 // Checks required fields + basic scalar types. Not full JSON Schema — enough
 // to give the model a correctable error without a validator library.
@@ -81,7 +88,9 @@ export class ToolExecutor {
 
     const start = Date.now();
     try {
-      const data = await this.runner(ctx => entry.handler(call.arguments, ctx, this.registry));
+      const data = entry.spec.runtime === 'none'
+        ? await entry.handler(call.arguments, undefined as unknown as Excel.RequestContext, this.registry)
+        : await this.runner(ctx => entry.handler(call.arguments, ctx, this.registry));
       return { toolCallId: call.id, ok: true, data, durationMs: Date.now() - start };
     } catch (e) {
       // Use both instanceof and e.name so the mapping is robust across Vitest module boundaries.
@@ -90,6 +99,9 @@ export class ToolExecutor {
       }
       if (e instanceof ToolUnsupportedError || (e instanceof Error && e.name === 'ToolUnsupportedError')) {
         return err(call.id, 'Unsupported', (e as Error).message);
+      }
+      if (e instanceof ToolNetworkError || (e instanceof Error && e.name === 'ToolNetworkError')) {
+        return err(call.id, 'NetworkError', (e as Error).message);
       }
       if (e instanceof WorkbookNotFoundError) {
         return err(call.id, 'WorkbookNotFound', e.message);
