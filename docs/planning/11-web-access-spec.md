@@ -221,7 +221,7 @@ Cherry-pick from `5a267ba` where it's clean: ChatPanel overflow CSS, `ToolNetwor
 ## 11.11 Open questions (decide before Phase 2)
 
 1. ~~Which search path to target first~~ — **Resolved: BYOK (bring-your-own-key), see §11.12.** Each user configures their own provider + free-tier key, mirroring how SheetClaw already handles LLM API keys. Works identically for personal use and published distribution.
-2. Is the jina.ai reader fallback acceptable privacy-wise for an AppSource-distributed add-in, or should `fetch_url` be direct-only (CORS-friendly hosts only) with a clear error otherwise?
+2. Is the jina.ai reader fallback acceptable privacy-wise for an AppSource-distributed add-in, or should `fetch_url` be direct-only (CORS-friendly hosts only) with a clear error otherwise? A third option — routing blocked fetches through a local OpenClaw instance — is recorded in Doc 12 §12.9 as a future possibility.
 3. ~~Should `fetch_url` be allowed without the Search toggle?~~ — **Resolved: no.** The Search toggle is the single gate for all web egress, and it requires a configured key (§11.4). A user who wants the agent to fetch a pasted URL configures a key and enables Search like everyone else.
 
 ## 11.12 Distribution scenario analysis (personal vs published)
