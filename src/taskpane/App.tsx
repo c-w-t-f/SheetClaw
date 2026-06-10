@@ -11,6 +11,7 @@ import {
 import ChatPanel from './components/ChatPanel';
 import UsageDashboard from './components/UsageDashboard';
 import SettingsPanel from './components/SettingsPanel';
+import type { SettingsTabKey } from './components/SettingsPanel';
 import AboutPanel from './components/AboutPanel';
 import Footer from './components/Footer';
 import WebProviderSpikePanel from './components/WebProviderSpikePanel';
@@ -19,6 +20,7 @@ type TabId = 'chat' | 'usage' | 'settings' | 'web-spike' | 'about';
 
 export default function App() {
   const [tab, setTab] = useState<TabId>('chat');
+  const [settingsTab, setSettingsTab] = useState<SettingsTabKey | undefined>(undefined);
 
   return (
     <FluentProvider theme={webLightTheme} style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -62,9 +64,9 @@ export default function App() {
 
       {/* Active surface */}
       <div style={{ flex: 1, minHeight: 0, height: '100%' }}>
-        {tab === 'chat'     && <ChatPanel onOpenSettings={() => setTab('settings')} />}
+        {tab === 'chat'     && <ChatPanel onOpenSettings={(target) => { setSettingsTab(target); setTab('settings'); }} />}
         {tab === 'usage'    && <UsageDashboard />}
-        {tab === 'settings' && <SettingsPanel />}
+        {tab === 'settings' && <SettingsPanel initialTab={settingsTab} />}
         {tab === 'web-spike' && <WebProviderSpikePanel />}
         {tab === 'about'    && <AboutPanel />}
       </div>

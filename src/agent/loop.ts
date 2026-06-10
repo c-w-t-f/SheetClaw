@@ -19,6 +19,7 @@ import { ContextBuilder } from './context-builder';
 import { computeRangeDiff } from '../workbook/a1notation';
 import { useStore } from '../store/index';
 import { findPricing, computeCost } from '../pricing/index';
+import { filterToolsForRun } from './tool-filter';
 
 const MAX_ITERATIONS = 25;
 export type LoopRunner = <T>(fn: (ctx: Excel.RequestContext) => Promise<T>) => Promise<T>;
@@ -60,6 +61,9 @@ export class AgentLoop {
   ): Promise<void> {
     const ac = new AbortController();
     this.abortController = ac;
+    const store = useStore.getState();
+    const webProvider = store.appConfig.webAccess.provider;
+    const webConfigured = webProvider !== 'none' && store.isSearchProviderReady(webProvider);
 
     const session: AgentSession = {
       id: ulid(),
@@ -72,10 +76,10 @@ export class AgentLoop {
       model: cfg.model,
       messageIds: [],
       tokenBudget: { used: 0, window: cfg.contextLimits.maxContextTokens },
+      webSearchEnabled: store.webSearchEnabled && webConfigured,
       totals: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
     };
 
-    const store = useStore.getState();
     store.setSession(session);
     store.resetSessionTotals(session.id);
 
@@ -119,7 +123,10 @@ export class AgentLoop {
     ctxBuilder: ContextBuilder,
     signal: AbortSignal
   ): Promise<void> {
-    const toolSpecs = this.executor.getToolSpecs();
+    const store = useStore.getState();
+    const webProvider = store.appConfig.webAccess.provider;
+    const webConfigured = webProvider !== 'none' && store.isSearchProviderReady(webProvider);
+    const toolSpecs = filterToolsForRun(this.executor.getToolSpecs(), session.webSearchEnabled, webConfigured);
 
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
       if (signal.aborted) return;

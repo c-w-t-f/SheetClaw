@@ -22,6 +22,7 @@ const SESSION: AgentSession = {
   status: 'building', iteration: 1, maxIterations: 25,
   provider: 'ollama', model: 'llama3.2',
   messageIds: [], tokenBudget: { used: 0, window: 128000 },
+  webSearchEnabled: false,
   totals: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
 };
 

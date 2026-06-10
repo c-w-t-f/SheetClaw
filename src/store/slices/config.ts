@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { ProviderConfig, ProviderKey } from '../../types';
+import type { ProviderConfig, ProviderKey, WebAccessConfig } from '../../types';
 import { storage } from '../storage';
 
 const STORAGE_KEY = 'xl.config.providers';
@@ -9,12 +9,14 @@ export interface AppConfig {
   activeProvider: ProviderKey;
   autoApproveSession: boolean;
   pricingMode: 'bundled' | 'custom';
+  webAccess: WebAccessConfig;
 }
 
 const DEFAULT_APP_CONFIG: AppConfig = {
   activeProvider: 'ollama',
   autoApproveSession: false,
   pricingMode: 'bundled',
+  webAccess: { provider: 'none', readerFallback: false },
 };
 
 const DEFAULT_PROVIDERS: Record<ProviderKey, ProviderConfig> = {

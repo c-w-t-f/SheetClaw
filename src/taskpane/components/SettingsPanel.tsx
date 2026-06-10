@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Button,
   Caption1,
+  Checkbox,
   Combobox,
   Field,
   Input,
@@ -21,14 +22,16 @@ import { createAdapter } from '../../adapters/index';
 import type { AuthState, ProviderConfig, ProviderKey } from '../../types';
 import { getAuthCredential } from '../../auth/credentials';
 import { signInWithOpenRouter } from '../../auth/oauthFlow';
+import { getSearchProvider, SEARCH_PROVIDERS, type SearchProviderId, type WebAccessProvider } from '../../web/providers';
 
 type ApiKeyProvider = Exclude<ProviderKey, 'ollama' | 'generic'>;
-type SettingsTabKey = 'ollama' | 'apiKeys' | 'generic';
+export type SettingsTabKey = 'ollama' | 'apiKeys' | 'generic' | 'search';
 
 const SETTINGS_TABS: { key: SettingsTabKey; label: string }[] = [
   { key: 'ollama', label: 'Ollama' },
   { key: 'generic', label: 'OpenRouter' },
   { key: 'apiKeys', label: 'Other API' },
+  { key: 'search', label: 'Search' },
 ];
 
 const API_KEY_PROVIDERS: { key: ApiKeyProvider; label: string }[] = [
@@ -126,21 +129,30 @@ function isApiKeyProvider(provider: ProviderKey): provider is ApiKeyProvider {
   return provider !== 'ollama' && provider !== 'generic';
 }
 
-export default function SettingsPanel() {
+export default function SettingsPanel({ initialTab }: { initialTab?: SettingsTabKey }) {
   const providers = useStore(s => s.providers);
   const appConfig = useStore(s => s.appConfig);
   const authStates = useStore(s => s.authStates);
+  const searchAuthStates = useStore(s => s.searchAuthStates);
   const setProvider = useStore(s => s.setProvider);
   const setActiveProvider = useStore(s => s.setActiveProvider);
   const saveApiKey = useStore(s => s.saveApiKey);
   const saveOAuthCredential = useStore(s => s.saveOAuthCredential);
   const setAuthState = useStore(s => s.setAuthState);
   const clearApiKey = useStore(s => s.clearApiKey);
+  const saveSearchApiKey = useStore(s => s.saveSearchApiKey);
+  const clearSearchApiKey = useStore(s => s.clearSearchApiKey);
+  const setAppConfig = useStore(s => s.setAppConfig);
+  const setWebSearchEnabled = useStore(s => s.setWebSearchEnabled);
 
-  const [selectedTab, setSelectedTab] = useState<SettingsTabKey>(providerToTab(appConfig.activeProvider));
+  const [selectedTab, setSelectedTab] = useState<SettingsTabKey>(initialTab ?? providerToTab(appConfig.activeProvider));
   const [selectedApiProvider, setSelectedApiProvider] = useState<ApiKeyProvider>(
     isApiKeyProvider(appConfig.activeProvider) ? appConfig.activeProvider : 'openai'
   );
+
+  useEffect(() => {
+    if (initialTab) setSelectedTab(initialTab);
+  }, [initialTab]);
 
   function renderProviderForm(providerKey: ProviderKey, key: string = providerKey) {
     return (
@@ -180,7 +192,21 @@ export default function SettingsPanel() {
       </TabList>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
-        {selectedTab === 'apiKeys' ? (
+        {selectedTab === 'search' ? (
+          <SearchSettingsForm
+            provider={appConfig.webAccess.provider}
+            baseUrl={appConfig.webAccess.baseUrl ?? ''}
+            readerFallback={appConfig.webAccess.readerFallback}
+            searchAuthStates={searchAuthStates}
+            onSaveConfig={(patch) => setAppConfig({ webAccess: { ...appConfig.webAccess, ...patch } })}
+            onSaveKey={saveSearchApiKey}
+            onClearKey={(provider) => {
+              clearSearchApiKey(provider);
+              setAppConfig({ webAccess: { ...appConfig.webAccess, provider: 'none' } });
+              setWebSearchEnabled(false);
+            }}
+          />
+        ) : selectedTab === 'apiKeys' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <ActiveProviderButton
               isActive={appConfig.activeProvider === selectedApiProvider}
@@ -224,6 +250,151 @@ interface ProviderFormProps {
   }) => void;
   onSetAuthState: (patch: Partial<AuthState>) => void;
   onClearKey: () => void;
+}
+
+function SearchSettingsForm({
+  provider,
+  baseUrl,
+  readerFallback,
+  searchAuthStates,
+  onSaveConfig,
+  onSaveKey,
+  onClearKey,
+}: {
+  provider: WebAccessProvider;
+  baseUrl: string;
+  readerFallback: boolean;
+  searchAuthStates: Record<SearchProviderId, AuthState>;
+  onSaveConfig: (patch: { provider?: WebAccessProvider; baseUrl?: string; readerFallback?: boolean }) => void;
+  onSaveKey: (provider: SearchProviderId, key: string) => void;
+  onClearKey: (provider: SearchProviderId) => void;
+}) {
+  const selectedProvider = provider === 'none' ? 'tavily' : provider;
+  const adapter = getSearchProvider(selectedProvider);
+  const auth = searchAuthStates[selectedProvider];
+  const [apiKey, setApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [localBaseUrl, setLocalBaseUrl] = useState(baseUrl);
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
+  const [testMsg, setTestMsg] = useState('');
+  const keySet = !!getAuthCredential(auth);
+
+  useEffect(() => {
+    setLocalBaseUrl(baseUrl);
+  }, [baseUrl]);
+
+  function saveKey() {
+    if (!apiKey.trim()) return;
+    onSaveKey(selectedProvider, apiKey);
+    onSaveConfig({ provider: selectedProvider });
+    setApiKey('');
+  }
+
+  async function testKey() {
+    if (!adapter) return;
+    const key = apiKey || getAuthCredential(auth);
+    setTestStatus('testing');
+    setTestMsg('');
+    try {
+      const results = await adapter.search('spreadsheet public data', {
+        maxResults: 1,
+        apiKey: key,
+        baseUrl: localBaseUrl || undefined,
+        signal: new AbortController().signal,
+      });
+      setTestStatus('ok');
+      setTestMsg(`Connected - ${results.length} result${results.length !== 1 ? 's' : ''} returned`);
+    } catch (e) {
+      setTestStatus('error');
+      setTestMsg(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <Field label="Provider">
+        <Select
+          value={provider}
+          onChange={(_, d) => onSaveConfig({ provider: d.value as WebAccessProvider })}
+          size="small"
+        >
+          <option value="none">None</option>
+          {Object.values(SEARCH_PROVIDERS).map(p => (
+            <option key={p.id} value={p.id}>{p.label}</option>
+          ))}
+        </Select>
+      </Field>
+
+      {adapter && (
+        <>
+          <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>
+            Search is optional and uses your own provider key. It is off for each new session until you enable it in Chat.
+          </Caption1>
+          <a href={adapter.signupUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
+            Get a {adapter.label} key
+          </a>
+
+          <Field label="API Key">
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <Input
+                type={showKey ? 'text' : 'password'}
+                placeholder={keySet ? auth.apiKeyMasked : 'Enter search API key...'}
+                value={apiKey}
+                onChange={(_, d) => setApiKey(d.value)}
+                size="small"
+                style={{ flex: 1, fontFamily: 'monospace', fontSize: 12 }}
+              />
+              <Button size="small" appearance="subtle" onClick={() => setShowKey(s => !s)}>
+                {showKey ? 'Hide' : 'Show'}
+              </Button>
+              {keySet && (
+                <Button size="small" appearance="subtle" onClick={() => onClearKey(selectedProvider)}>Clear</Button>
+              )}
+            </div>
+          </Field>
+
+          <Field label="Base URL (optional)">
+            <Input
+              value={localBaseUrl}
+              onChange={(_, d) => setLocalBaseUrl(d.value)}
+              onBlur={() => onSaveConfig({ baseUrl: localBaseUrl })}
+              size="small"
+              style={{ fontFamily: 'monospace', fontSize: 12 }}
+            />
+          </Field>
+
+          <Checkbox
+            label="Allow reader fallback for fetched URLs"
+            checked={readerFallback}
+            onChange={(_, d) => onSaveConfig({ readerFallback: !!d.checked })}
+          />
+          <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>
+            Reader fallback routes fetched URLs through the configured reader service if direct browser fetch is blocked.
+          </Caption1>
+
+          <div style={{ display: 'flex', gap: 8 }}>
+            {apiKey && <Button appearance="primary" size="small" onClick={saveKey}>Save key</Button>}
+            <Button
+              appearance="secondary"
+              size="small"
+              disabled={testStatus === 'testing' || (!apiKey && !keySet)}
+              onClick={() => void testKey()}
+            >
+              {testStatus === 'testing' ? 'Testing...' : 'Test key'}
+            </Button>
+          </div>
+
+          {testStatus !== 'idle' && testStatus !== 'testing' && (
+            <MessageBar intent={testStatus === 'ok' ? 'success' : 'error'}>
+              <MessageBarBody>
+                <Caption1>{testMsg}</Caption1>
+              </MessageBarBody>
+            </MessageBar>
+          )}
+        </>
+      )}
+    </div>
+  );
 }
 
 type LoadState = 'idle' | 'loading' | 'loaded' | 'error';

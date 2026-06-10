@@ -4,6 +4,8 @@ import type { AgentSession, Message } from '../../types';
 export interface SessionSlice {
   currentSession: AgentSession | null;
   messages: Message[];
+  webSearchEnabled: boolean;
+  setWebSearchEnabled(enabled: boolean): void;
   setSession(session: AgentSession | null): void;
   updateSession(patch: Partial<AgentSession>): void;
   appendMessage(msg: Message): void;
@@ -14,6 +16,11 @@ export interface SessionSlice {
 export const createSessionSlice: StateCreator<SessionSlice> = set => ({
   currentSession: null,
   messages: [],
+  webSearchEnabled: false,
+
+  setWebSearchEnabled(enabled) {
+    set({ webSearchEnabled: enabled });
+  },
 
   setSession(session) {
     set({ currentSession: session, messages: [] });

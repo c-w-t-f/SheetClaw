@@ -42,6 +42,7 @@ export interface AgentSession {
   model: string;
   messageIds: string[];
   pendingChange?: PendingChange;
+  webSearchEnabled: boolean;
   tokenBudget: { used: number; window: number };
   lastError?: { code: string; message: string };
   totals: { inputTokens: number; outputTokens: number; costUsd: number };

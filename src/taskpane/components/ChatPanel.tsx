@@ -40,9 +40,10 @@ const composerActionStyle = {
   padding: 0,
 };
 
-export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => void }) {
+export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target?: 'search') => void }) {
   const [input, setInput] = useState('');
   const [initError, setInitError] = useState<string | null>(null);
+  const [searchHint, setSearchHint] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement | HTMLSpanElement>(null);
   const [textareaHeight, setTextareaHeight] = useState(32);
@@ -70,8 +71,13 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => v
   const providers = useStore(s => s.providers);
   const appConfig = useStore(s => s.appConfig);
   const setAppConfig = useStore(s => s.setAppConfig);
+  const webSearchEnabled = useStore(s => s.webSearchEnabled);
+  const setWebSearchEnabled = useStore(s => s.setWebSearchEnabled);
   const authStates = useStore(s => s.authStates);
   const activeProviderReady = useStore(s => s.isProviderReady(s.appConfig.activeProvider));
+  const searchProviderReady = useStore(s =>
+    s.appConfig.webAccess.provider !== 'none' && s.isSearchProviderReady(s.appConfig.webAccess.provider)
+  );
 
   const isRunning = session ? STATUS_RUNNING.has(session.status) : false;
   const awaitingConfirm = session?.status === 'awaiting_confirmation';
@@ -85,6 +91,7 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => v
       : !modelReady
         ? 'Select a model in Settings before chatting.'
         : '';
+  const effectiveSearchEnabled = webSearchEnabled && searchProviderReady;
 
   useEffect(() => {
     getTaskpaneWorkbookLayer().registry.refresh().catch(e => {
@@ -153,7 +160,18 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => v
           <MessageBarBody>{providerWarning}</MessageBarBody>
           {onOpenSettings && (
             <MessageBarActions>
-              <Button size="small" appearance="subtle" onClick={onOpenSettings}>Settings</Button>
+              <Button size="small" appearance="subtle" onClick={() => onOpenSettings()}>Settings</Button>
+            </MessageBarActions>
+          )}
+        </MessageBar>
+      )}
+
+      {searchHint && (
+        <MessageBar intent="warning">
+          <MessageBarBody>Web search needs a provider key. Configure it in Settings - Search.</MessageBarBody>
+          {onOpenSettings && (
+            <MessageBarActions>
+              <Button size="small" appearance="subtle" onClick={() => onOpenSettings('search')}>Open Settings</Button>
             </MessageBarActions>
           )}
         </MessageBar>
@@ -240,6 +258,27 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: () => v
             checked={appConfig.autoApproveSession}
             onChange={(_, d) => setAppConfig({ autoApproveSession: d.checked })}
           />
+          <Button
+            size="small"
+            appearance={effectiveSearchEnabled ? 'primary' : 'secondary'}
+            aria-pressed={effectiveSearchEnabled}
+            aria-disabled={!searchProviderReady}
+            style={{
+              opacity: searchProviderReady ? 1 : 0.55,
+              cursor: searchProviderReady ? 'pointer' : 'not-allowed',
+            }}
+            onClick={() => {
+              if (!searchProviderReady) {
+                setWebSearchEnabled(false);
+                setSearchHint(true);
+                return;
+              }
+              setSearchHint(false);
+              setWebSearchEnabled(!webSearchEnabled);
+            }}
+          >
+            Search
+          </Button>
           {isRunning
             ? (
               <Button
@@ -293,7 +332,7 @@ function EmptyChatState({
 }: {
   providerReady: boolean;
   onPickPrompt: (prompt: string) => void;
-  onOpenSettings?: () => void;
+  onOpenSettings?: (target?: 'search') => void;
 }) {
   return (
     <div style={{
@@ -330,7 +369,7 @@ function EmptyChatState({
           ))}
         </div>
       ) : onOpenSettings ? (
-        <Button appearance="primary" size="small" onClick={onOpenSettings}>
+        <Button appearance="primary" size="small" onClick={() => onOpenSettings()}>
           Open Settings
         </Button>
       ) : null}

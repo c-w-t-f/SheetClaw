@@ -1,4 +1,5 @@
 import type { ProviderKey } from './usage';
+import type { SearchProviderId, WebAccessProvider } from '../web/providers';
 
 export interface ModelInfo {
   id: string;
@@ -35,7 +36,7 @@ export interface ProviderConfig {
 }
 
 export interface AuthState {
-  provider: ProviderKey;
+  provider: string;
   state:
     | 'unauthenticated'
     | 'authenticating'
@@ -55,3 +56,11 @@ export interface AuthState {
   /** Raw key - Phase 8 will move this to OS vault. Personal-use only. */
   _key?: string;
 }
+
+export interface WebAccessConfig {
+  provider: WebAccessProvider;
+  baseUrl?: string;
+  readerFallback: boolean;
+}
+
+export type { SearchProviderId, WebAccessProvider };

@@ -1,8 +1,9 @@
 import type { StateCreator } from 'zustand';
-import type { AuthState, ProviderKey } from '../../types';
+import type { AuthState, ProviderKey, SearchProviderId } from '../../types';
 import { storage } from '../storage';
 
 const AUTH_KEY = (p: ProviderKey) => `xl.auth.${p}`;
+const SEARCH_AUTH_KEY = (p: SearchProviderId) => `xl.auth.search:${p}`;
 
 function maskKey(key: string): string {
   if (key.length <= 8) return '••••••••';
@@ -11,6 +12,7 @@ function maskKey(key: string): string {
 
 export interface AuthSlice {
   authStates: Record<ProviderKey, AuthState>;
+  searchAuthStates: Record<SearchProviderId, AuthState>;
   setAuthState(provider: ProviderKey, state: Partial<AuthState>): void;
   saveApiKey(provider: ProviderKey, key: string): void;
   saveOAuthCredential(provider: ProviderKey, credential: {
@@ -22,11 +24,14 @@ export interface AuthSlice {
     expiresAt?: string;
   }): void;
   clearApiKey(provider: ProviderKey): void;
+  saveSearchApiKey(provider: SearchProviderId, key: string): void;
+  clearSearchApiKey(provider: SearchProviderId): void;
   loadAuthFromStorage(): void;
   isProviderReady(provider: ProviderKey): boolean;
+  isSearchProviderReady(provider: SearchProviderId): boolean;
 }
 
-const DEFAULT_AUTH_STATE = (provider: ProviderKey): AuthState => ({
+const DEFAULT_AUTH_STATE = (provider: string): AuthState => ({
   provider,
   state: 'unauthenticated',
 });
@@ -46,10 +51,15 @@ const ALL_PROVIDERS: ProviderKey[] = [
   'llama',
 ];
 
+const SEARCH_PROVIDERS: SearchProviderId[] = ['tavily'];
+
 export const createAuthSlice: StateCreator<AuthSlice> = (set, get) => ({
   authStates: Object.fromEntries(
     ALL_PROVIDERS.map(p => [p, DEFAULT_AUTH_STATE(p)])
   ) as Record<ProviderKey, AuthState>,
+  searchAuthStates: Object.fromEntries(
+    SEARCH_PROVIDERS.map(p => [p, DEFAULT_AUTH_STATE(`search:${p}`)])
+  ) as Record<SearchProviderId, AuthState>,
 
   setAuthState(provider, patch) {
     set(state => ({
@@ -98,15 +108,44 @@ export const createAuthSlice: StateCreator<AuthSlice> = (set, get) => ({
     set(state => ({ authStates: { ...state.authStates, [provider]: next } }));
   },
 
+  saveSearchApiKey(provider, key) {
+    const trimmed = key.trim();
+    const next: AuthState = {
+      provider: `search:${provider}`,
+      state: trimmed ? 'authenticated' : 'unauthenticated',
+      authMode: trimmed ? 'apikey' : undefined,
+      apiKeyMasked: trimmed ? maskKey(trimmed) : undefined,
+      _key: trimmed || undefined,
+    };
+    storage.put(SEARCH_AUTH_KEY(provider), next);
+    set(state => ({ searchAuthStates: { ...state.searchAuthStates, [provider]: next } }));
+  },
+
+  clearSearchApiKey(provider) {
+    const next: AuthState = { provider: `search:${provider}`, state: 'unauthenticated' };
+    storage.put(SEARCH_AUTH_KEY(provider), next);
+    set(state => ({ searchAuthStates: { ...state.searchAuthStates, [provider]: next } }));
+  },
+
   loadAuthFromStorage() {
     const loaded: Partial<Record<ProviderKey, AuthState>> = {};
     for (const p of ALL_PROVIDERS) {
       const saved = storage.get<AuthState>(AUTH_KEY(p));
       if (saved) loaded[p] = saved;
     }
+    const loadedSearch: Partial<Record<SearchProviderId, AuthState>> = {};
+    for (const p of SEARCH_PROVIDERS) {
+      const saved = storage.get<AuthState>(SEARCH_AUTH_KEY(p));
+      if (saved) loadedSearch[p] = saved;
+    }
     if (Object.keys(loaded).length > 0) {
       set(state => ({
         authStates: { ...state.authStates, ...loaded },
+      }));
+    }
+    if (Object.keys(loadedSearch).length > 0) {
+      set(state => ({
+        searchAuthStates: { ...state.searchAuthStates, ...loadedSearch },
       }));
     }
   },
@@ -117,5 +156,10 @@ export const createAuthSlice: StateCreator<AuthSlice> = (set, get) => ({
     if (provider === 'ollama') return s === 'unauthenticated' || s === 'authenticated';
     if (auth?.expiresAt && Date.parse(auth.expiresAt) <= Date.now() + 60_000) return false;
     return s === 'authenticated';
+  },
+
+  isSearchProviderReady(provider) {
+    const auth = get().searchAuthStates[provider];
+    return auth?.state === 'authenticated';
   },
 });
