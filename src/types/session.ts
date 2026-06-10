@@ -1,4 +1,5 @@
 import type { ToolCall } from './tool';
+import type { PendingChoice } from '../agent/choice';
 
 export interface SessionScope {
   workbookId: string;
@@ -26,6 +27,7 @@ export type SessionStatus =
   | 'calling_llm'
   | 'parsing'
   | 'awaiting_confirmation'
+  | 'awaiting_choice'
   | 'executing_tool'
   | 'error'
   | 'done'
@@ -42,6 +44,7 @@ export interface AgentSession {
   model: string;
   messageIds: string[];
   pendingChange?: PendingChange;
+  pendingChoice?: PendingChoice;
   webSearchEnabled: boolean;
   tokenBudget: { used: number; window: number };
   lastError?: { code: string; message: string };

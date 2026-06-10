@@ -20,6 +20,8 @@ import { computeRangeDiff } from '../workbook/a1notation';
 import { useStore } from '../store/index';
 import { findPricing, computeCost } from '../pricing/index';
 import { filterToolsForRun } from './tool-filter';
+import { REQUEST_USER_CHOICE, parsePendingChoice } from './choice';
+import { ToolValidationError } from '../workbook/executor';
 
 const MAX_ITERATIONS = 25;
 export type LoopRunner = <T>(fn: (ctx: Excel.RequestContext) => Promise<T>) => Promise<T>;
@@ -40,6 +42,7 @@ interface StreamResult {
 export class AgentLoop {
   private abortController: AbortController | null = null;
   private confirmationResolve: ((d: 'apply' | 'cancel') => void) | null = null;
+  private choiceResolve: ((d: { kind: 'select'; ids: string[] } | { kind: 'dismiss' }) => void) | null = null;
   private runner: LoopRunner;
 
   constructor(
@@ -105,11 +108,21 @@ export class AgentLoop {
   stop(): void {
     this.abortController?.abort();
     this.confirmationResolve = null;
+    this.choiceResolve = null;
   }
 
   resolveConfirmation(decision: 'apply' | 'cancel'): void {
     this.confirmationResolve?.(decision);
     this.confirmationResolve = null;
+  }
+
+  resolveChoice(ids: string[] | 'dismiss'): void {
+    if (ids === 'dismiss') {
+      this.choiceResolve?.({ kind: 'dismiss' });
+    } else {
+      this.choiceResolve?.({ kind: 'select', ids });
+    }
+    this.choiceResolve = null;
   }
 
   isRunning(): boolean { return this.abortController !== null; }
@@ -126,7 +139,10 @@ export class AgentLoop {
     const store = useStore.getState();
     const webProvider = store.appConfig.webAccess.provider;
     const webConfigured = webProvider !== 'none' && store.isSearchProviderReady(webProvider);
-    const toolSpecs = filterToolsForRun(this.executor.getToolSpecs(), session.webSearchEnabled, webConfigured);
+    const toolSpecs = [
+      ...filterToolsForRun(this.executor.getToolSpecs(), session.webSearchEnabled, webConfigured),
+      REQUEST_USER_CHOICE,
+    ];
 
     for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
       if (signal.aborted) return;
@@ -276,6 +292,51 @@ export class AgentLoop {
   private async executeCall(call: ToolCall, session: AgentSession, signal: AbortSignal): Promise<void> {
     const scope = { workbookId: session.scope.workbookId };
 
+    if (call.name === REQUEST_USER_CHOICE.name) {
+      let pendingChoice: ReturnType<typeof parsePendingChoice>;
+      try {
+        pendingChoice = parsePendingChoice(call.id, call.arguments);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        const result = {
+          toolCallId: call.id,
+          ok: false as const,
+          error: {
+            code: 'ValidationError' as const,
+            message: e instanceof ToolValidationError ? message : `Invalid choice request: ${message}`,
+          },
+        };
+        this.append(session.id, msg<ToolResultMessage>(session.id, { role: 'tool', toolCallId: call.id, result }));
+        return;
+      }
+
+      useStore.getState().updateSession({ status: 'awaiting_choice', pendingChoice });
+      const decision = await this.waitForChoice(signal);
+      useStore.getState().updateSession({ status: 'executing_tool', pendingChoice: undefined });
+
+      if (decision.kind === 'dismiss') {
+        const result = {
+          toolCallId: call.id,
+          ok: false as const,
+          error: { code: 'PermissionDenied' as const, message: 'User dismissed the choice menu' },
+        };
+        this.append(session.id, msg<ToolResultMessage>(session.id, { role: 'tool', toolCallId: call.id, result }));
+        return;
+      }
+
+      const selected = pendingChoice.options.filter(option => decision.ids.includes(option.id));
+      const result = {
+        toolCallId: call.id,
+        ok: true as const,
+        data: {
+          selected_ids: selected.map(option => option.id),
+          selected_options: selected,
+        },
+      };
+      this.append(session.id, msg<ToolResultMessage>(session.id, { role: 'tool', toolCallId: call.id, result }));
+      return;
+    }
+
     if (!call.mutating) {
       const result = await this.executor.execute(call, scope);
       this.append(session.id, msg<ToolResultMessage>(session.id, { role: 'tool', toolCallId: call.id, result }));
@@ -353,6 +414,16 @@ export class AgentLoop {
       this.confirmationResolve = resolve;
       signal.addEventListener('abort', () => {
         this.confirmationResolve = null;
+        reject(new DOMException('Aborted', 'AbortError'));
+      }, { once: true });
+    });
+  }
+
+  private waitForChoice(signal: AbortSignal): Promise<{ kind: 'select'; ids: string[] } | { kind: 'dismiss' }> {
+    return new Promise((resolve, reject) => {
+      this.choiceResolve = resolve;
+      signal.addEventListener('abort', () => {
+        this.choiceResolve = null;
         reject(new DOMException('Aborted', 'AbortError'));
       }, { once: true });
     });

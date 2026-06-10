@@ -65,6 +65,15 @@ function makeTwoTurnClient(
   };
 }
 
+function makeMultiTurnClient(events: AsyncIterable<LLMStreamEvent>[]): LLMClient {
+  let call = 0;
+  return {
+    chat: () => events[Math.min(call++, events.length - 1)],
+    listModels: async () => [],
+    capabilities: () => ({ supportsTools: true, supportsStreaming: true, supportsOAuth: false, nativeUsage: false, toolFormat: 'openai' as const }),
+  };
+}
+
 const CFG: ProviderConfig = {
   provider: 'ollama', enabled: true,
   baseUrl: 'http://localhost:11434', model: 'llama3.2',
@@ -74,6 +83,16 @@ const CFG: ProviderConfig = {
 };
 
 const SCOPE = { workbookId: 'wb1' };
+
+async function waitForStatus(status: string): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < 1000) {
+    if (useStore.getState().currentSession?.status === status) return;
+    await new Promise(r => setTimeout(r, 5));
+  }
+  const state = useStore.getState();
+  throw new Error(`Timed out waiting for status ${status}; current=${state.currentSession?.status}; messages=${JSON.stringify(state.messages)}`);
+}
 
 function noop<T>(fn: (ctx: Excel.RequestContext) => Promise<T>): Promise<T> {
   return fn({} as Excel.RequestContext);
@@ -226,5 +245,104 @@ describe('AgentLoop — error handling', () => {
     const state = useStore.getState();
     expect(state.currentSession?.status).toBe('error');
     expect(state.currentSession?.lastError?.message).toContain('AuthError');
+  });
+});
+
+describe('AgentLoop - request_user_choice', () => {
+  it('feeds malformed choice args back as ValidationError, then succeeds after corrected args', async () => {
+    const client = makeMultiTurnClient([
+      toolCallStream('bad_choice', 'request_user_choice', JSON.stringify({
+        question: 'Choose one',
+        options: ['Only one'],
+      })),
+      toolCallStream('good_choice', 'request_user_choice', JSON.stringify({
+        question: 'Choose one',
+        options: [{ id: 'a', label: 'A' }, { id: 'b', label: 'B' }],
+      })),
+      textStream('Continuing with A.'),
+    ]);
+    const loop = new AgentLoop(
+      makeRegistry(),
+      makeExecutor() as unknown as ToolExecutor,
+      new SnapshotManager(),
+      noop
+    );
+
+    const run = loop.start('Need a choice', SCOPE, client, CFG);
+    await waitForStatus('awaiting_choice');
+    loop.resolveChoice(['a']);
+    await run;
+
+    const toolMessages = useStore.getState().messages.filter(m => m.role === 'tool') as Array<{ result: ToolResult }>;
+    expect(toolMessages[0].result.ok).toBe(false);
+    expect(toolMessages[0].result.error?.code).toBe('ValidationError');
+    expect(toolMessages[1].result.ok).toBe(true);
+    expect(toolMessages[1].result.data).toMatchObject({ selected_ids: ['a'] });
+  });
+
+  it('leaves prose-only clarification as a normal text turn with no menu', async () => {
+    const loop = new AgentLoop(
+      makeRegistry(),
+      makeExecutor() as unknown as ToolExecutor,
+      new SnapshotManager(),
+      noop
+    );
+
+    await loop.start('Ambiguous request', SCOPE, makeSingleTurnClient(textStream('Which source should I use?')), CFG);
+
+    const state = useStore.getState();
+    expect(state.currentSession?.status).toBe('done');
+    expect(state.currentSession?.pendingChoice).toBeUndefined();
+    expect(state.messages.some(m => m.role === 'tool')).toBe(false);
+  });
+
+  it('selection and dismiss resolve as tool results without synthetic user messages', async () => {
+    const choiceArgs = JSON.stringify({
+      question: 'Pick a source',
+      options: [{ id: 'left', label: 'Left' }, { id: 'right', label: 'Right' }],
+    });
+    const selectLoop = new AgentLoop(
+      makeRegistry(),
+      makeExecutor() as unknown as ToolExecutor,
+      new SnapshotManager(),
+      noop
+    );
+    let run = selectLoop.start('Pick', SCOPE, makeTwoTurnClient(
+      toolCallStream('choice_select', 'request_user_choice', choiceArgs),
+      textStream('Done.')
+    ), CFG);
+    await waitForStatus('awaiting_choice');
+    selectLoop.resolveChoice(['right']);
+    await run;
+
+    let state = useStore.getState();
+    let userMessages = state.messages.filter(m => m.role === 'user') as Array<{ text: string }>;
+    expect(userMessages.map(m => m.text)).toEqual(['Pick']);
+    let toolMessage = state.messages.find(m => m.role === 'tool') as { result: ToolResult };
+    expect(toolMessage.result.data).toMatchObject({ selected_ids: ['right'] });
+
+    useStore.getState().setSession(null);
+    useStore.getState().clearMessages();
+
+    const dismissLoop = new AgentLoop(
+      makeRegistry(),
+      makeExecutor() as unknown as ToolExecutor,
+      new SnapshotManager(),
+      noop
+    );
+    run = dismissLoop.start('Pick', SCOPE, makeTwoTurnClient(
+      toolCallStream('choice_dismiss', 'request_user_choice', choiceArgs),
+      textStream('Stopped.')
+    ), CFG);
+    await waitForStatus('awaiting_choice');
+    dismissLoop.resolveChoice('dismiss');
+    await run;
+
+    state = useStore.getState();
+    userMessages = state.messages.filter(m => m.role === 'user') as Array<{ text: string }>;
+    expect(userMessages.map(m => m.text)).toEqual(['Pick']);
+    toolMessage = state.messages.find(m => m.role === 'tool') as { result: ToolResult };
+    expect(toolMessage.result.ok).toBe(false);
+    expect(toolMessage.result.error?.code).toBe('PermissionDenied');
   });
 });

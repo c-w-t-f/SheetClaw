@@ -25,6 +25,7 @@ const STATUS_LABELS: Record<string, string> = {
   parsing: 'Reading response',
   executing_tool: 'Running workbook tool',
   awaiting_confirmation: 'Awaiting confirmation',
+  awaiting_choice: 'Awaiting selection',
 };
 
 const EXAMPLE_PROMPTS = [
@@ -124,6 +125,8 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
   function stop() { getTaskpaneAgentLoop().stop(); }
   function applyConfirm() { getTaskpaneAgentLoop().resolveConfirmation('apply'); }
   function cancelConfirm() { getTaskpaneAgentLoop().resolveConfirmation('cancel'); }
+  function resolveChoice(ids: string[]) { getTaskpaneAgentLoop().resolveChoice(ids); }
+  function dismissChoice() { getTaskpaneAgentLoop().resolveChoice('dismiss'); }
 
   async function undo() {
     if (!session) return;
@@ -137,7 +140,8 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
   }
 
   const visibleMessages = messages.filter(m => (m as Message & { sessionId?: string }).sessionId === session?.id);
-  const showEmptyState = visibleMessages.length === 0 && !isRunning && !awaitingConfirm;
+  const awaitingChoice = session?.status === 'awaiting_choice';
+  const showEmptyState = visibleMessages.length === 0 && !isRunning && !awaitingConfirm && !awaitingChoice;
 
   return (
     <div style={{
@@ -205,7 +209,14 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
             onCancel={cancelConfirm}
           />
         )}
-        {isRunning && (
+        {awaitingChoice && session?.pendingChoice && (
+          <ChoiceBlock
+            choice={session.pendingChoice}
+            onContinue={resolveChoice}
+            onDismiss={dismissChoice}
+          />
+        )}
+        {(isRunning || awaitingChoice) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Spinner size="extra-small" />
             <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>
@@ -244,7 +255,7 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
               void send();
             }
           }}
-          disabled={isRunning || awaitingConfirm || !providerReady}
+          disabled={isRunning || awaitingConfirm || awaitingChoice || !providerReady}
           resize="none"
         />
         <div style={{
@@ -466,6 +477,85 @@ function ConfirmationBlock({
       <div style={{ display: 'flex', gap: 8 }}>
         <Button appearance="primary" onClick={onApply}>Apply</Button>
         <Button appearance="secondary" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
+function ChoiceBlock({
+  choice,
+  onContinue,
+  onDismiss,
+}: {
+  choice: NonNullable<import('../../types').AgentSession['pendingChoice']>;
+  onContinue: (ids: string[]) => void;
+  onDismiss: () => void;
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const selectedSet = new Set(selected);
+
+  function toggle(id: string) {
+    if (choice.allowMultiple) {
+      setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    } else {
+      setSelected(prev => prev[0] === id ? [] : [id]);
+    }
+  }
+
+  return (
+    <div style={{
+      border: `1px solid ${tokens.colorNeutralStroke1}`,
+      borderRadius: 6,
+      padding: 12,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 10,
+      background: tokens.colorNeutralBackground1,
+      minWidth: 0,
+    }}>
+      <Body1Strong>{choice.question}</Body1Strong>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {choice.options.map((option, index) => {
+          const active = selectedSet.has(option.id);
+          return (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => toggle(option.id)}
+              aria-pressed={active}
+              style={{
+                textAlign: 'left',
+                border: `1px solid ${active ? tokens.colorBrandStroke1 : tokens.colorNeutralStroke1}`,
+                background: active ? tokens.colorBrandBackground2 : tokens.colorNeutralBackground2,
+                color: tokens.colorNeutralForeground1,
+                borderRadius: 6,
+                padding: 8,
+                cursor: 'pointer',
+                display: 'flex',
+                gap: 8,
+                minWidth: 0,
+              }}
+            >
+              <Caption1 style={{ color: tokens.colorNeutralForeground3, width: 18, flexShrink: 0 }}>
+                {index + 1}.
+              </Caption1>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                <Body1Strong style={{ overflowWrap: 'anywhere' }}>{option.label}</Body1Strong>
+                {option.description && (
+                  <Caption1 style={{ color: tokens.colorNeutralForeground3, overflowWrap: 'anywhere' }}>
+                    {option.description}
+                  </Caption1>
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <Button appearance="primary" disabled={selected.length === 0} onClick={() => onContinue(selected)}>
+          Continue
+        </Button>
+        <Button appearance="secondary" onClick={onDismiss}>Dismiss</Button>
       </div>
     </div>
   );
