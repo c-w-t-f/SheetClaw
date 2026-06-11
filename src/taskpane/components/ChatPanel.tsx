@@ -534,7 +534,7 @@ type MarkdownPart =
 function MarkdownMessage({ text }: { text: string }) {
   const parts = parseMarkdownTables(text);
   if (parts.length === 1 && parts[0].type === 'text') {
-    return <Body1 style={{ whiteSpace: 'pre-wrap' }}>{text}</Body1>;
+    return <Body1 style={{ whiteSpace: 'pre-wrap' }}>{renderInlineMarkdown(text)}</Body1>;
   }
 
   return (
