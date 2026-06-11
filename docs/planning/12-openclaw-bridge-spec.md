@@ -1,5 +1,7 @@
 # Document 12 — OpenClaw Bridge Spec (delegation tool)
 
+> **Status (2026-06-11): SUNSET PENDING — do not continue implementation.** Superseded by native provider search ([Doc 13](13-native-search-spec.md), decision 2). Implementation stopped during Phase 0; the only artifact is the SettingsPanel diagnostics section (`4df8160`, `7df37d1`), which is removed once Doc 13's Phase 0 verification passes (removal inventory: Doc 13 §13.7). This document is retained as a historical record.
+
 Optional integration with a locally-running [OpenClaw](https://openclaw.ai) gateway: a `delegate_web_task` tool that hands a research task to the user's OpenClaw agent (which has a real browser, web tools, and skills, all running in Node where CORS does not apply) and returns its final answer for SheetClaw to work into the workbook.
 
 Relationship to Doc 11: this complements `web_search`/`fetch_url`, it does not replace them. Direct fetch stays the cheap path for CORS-friendly URLs; delegation is for multi-step research and CORS-blocked sources. Doc 11's open question 2 (reader fallback privacy) gains a future third option — OpenClaw as a local reader — recorded here as out of scope for v1 (§12.9).

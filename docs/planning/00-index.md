@@ -19,7 +19,8 @@ shared-folder manifest. No AppSource distribution.
 | 9 | [Risk Register](09-risk-register.md) | Risk, likelihood, impact, mitigation, validation phase |
 | 10 | [Build Sequencing & Dependency Map](10-build-sequencing.md) | Ordered build sequence, gates, references, complexity |
 | 11 | [Web Access & Scope Clarification Spec](11-web-access-spec.md) | web_search/fetch_url tools, request_user_choice menu flow, provider config, caps, genericity rules (reattempt of `5a267ba`) |
-| 12 | [OpenClaw Bridge Spec](12-openclaw-bridge-spec.md) | Optional delegate_web_task tool: hand research tasks to a locally-running OpenClaw agent; AppSource-safe gating, loopback-only, restricted-profile requirement |
+| 12 | [OpenClaw Bridge Spec](12-openclaw-bridge-spec.md) | **Sunset pending** (superseded by Doc 13): delegate_web_task tool for a locally-running OpenClaw agent; retained as historical record |
+| 13 | [Native Provider Search Spec](13-native-search-spec.md) | Search via the active LLM provider's native mechanism (OpenRouter, Anthropic, Kimi, Qwen, GLM); toggle gating by provider capability; OpenClaw + BYOK sunset plans |
 
 ## Decision log (items marked [DECISION REQUIRED] across the suite)
 

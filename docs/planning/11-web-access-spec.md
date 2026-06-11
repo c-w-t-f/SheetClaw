@@ -1,5 +1,7 @@
 # Document 11 — Web Access & Scope Clarification Spec
 
+> **Status update (2026-06-11):** discovery search has moved to **LLM-provider-native search** — see [Doc 13](13-native-search-spec.md), which supersedes this document's `web_search` tool, BYOK search providers (§11.3–§11.4), and the key-based Search-toggle gating. The BYOK stack is functionally retired; its code deletion is Doc 13 OQ1. **This document remains authoritative for `fetch_url` (preview/caps/CORS classification/deny-cache/reader fallback), `request_user_choice`, context budgets, and the genericity invariant.**
+
 Spec for the reattempt of the feature first tried in `5a267ba` (abandoned: its search pipeline could not work generically and was propped up by results hardcoded for a single demo scenario). Two capabilities:
 
 1. **Web access** — the agent can search the web and fetch public URLs to bring external data into the workbook.
