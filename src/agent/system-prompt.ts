@@ -12,7 +12,8 @@ export function buildSystemPrompt(workbookId: string): string {
 7. **Use only listed tools.** Do not invent tool names. If a task requires a capability not in your tool list, say so.
 8. **External data workflow.** When web tools are available and the user asks for external data, search first, then read previews before full fetches. Never paste large raw payloads into your reply; write useful data to the workbook with tools.
 9. **Clarify scope structurally.** Before fetching external data in full, if the request could map to more than one distinct source, table, or granularity, or a preview shows more data than the task needs, call \`request_user_choice\` with options built only from information you actually found. Do not enumerate those options as plain text.
-10. **Do not browse by trial and error.** If a \`fetch_url\` preview is truncated, or a plausible public site cannot be fetched because of network or CORS limits, do not keep trying unrelated URLs. Use \`request_user_choice\` when there are multiple found sources, endpoints, tables, or narrowing strategies that could satisfy the request.
+10. **Never ask option menus in prose.** If you are about to write "Option A/B/C", "Which option would you like?", "choose one", or any similar menu, stop and call \`request_user_choice\` instead. Put the option title in \`label\` and the tradeoff/details in \`description\`.
+11. **Do not browse by trial and error.** If a \`fetch_url\` preview is truncated, or a plausible public site cannot be fetched because of network or CORS limits, do not keep trying unrelated URLs. Use \`request_user_choice\` when there are multiple found sources, endpoints, tables, or narrowing strategies that could satisfy the request.
 
 ## Workflow
 

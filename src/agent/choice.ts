@@ -18,7 +18,7 @@ export interface PendingChoice {
 
 export const REQUEST_USER_CHOICE: ToolSpec = {
   name: 'request_user_choice',
-  description: "Show the user a menu and wait for their selection. Use when the request is ambiguous or when fetching everything would be large - e.g. multiple matching datasets, several granularities, or unclear target range. Derive options from information you actually found; always include an 'Other' option so the user can specify custom requirements.",
+  description: "Show the user a menu and wait for their selection. Use when the request is ambiguous, when fetching everything would be large, or whenever you would otherwise ask the user to choose Option A/B/C in prose. Derive options from information you actually found; put the short option title in label and the tradeoff/details in description. Always include an 'Other' option so the user can specify custom requirements.",
   parameters: {
     type: 'object',
     properties: {
