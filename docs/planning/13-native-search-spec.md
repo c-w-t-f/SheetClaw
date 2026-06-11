@@ -135,4 +135,6 @@ For each v1 provider, from a sideloaded taskpane with a real key, record in Appe
 
 ## Appendix A — Phase 0 results
 
-*(per-provider verification results go here)*
+| Date | Provider | Model / route | Result | Notes |
+|---|---|---|---|---|
+| 2026-06-11 | `generic` (OpenRouter) | `openai/gpt-5.5` via OpenRouter | Pass | User-confirmed sideloaded run with Search ON: native search returned grounded results; client tools including `read_range`/confirmed `write_range` still worked in the same search-enabled session; streaming completed without adapter errors or tool-call corruption; provider billing/cost visibility looked as expected. |
