@@ -32,17 +32,20 @@ interface OAIToolCallDelta {
 interface OAIChunk {
   choices?: Array<{
     index: number;
-    delta: {
+    delta?: {
       role?: string;
       content?: string | null;
       tool_calls?: OAIToolCallDelta[];
+      annotations?: unknown[];
     };
     finish_reason?: string | null;
+    message?: { annotations?: unknown[] };
   }>;
   usage?: {
     prompt_tokens: number;
     completion_tokens: number;
     prompt_tokens_details?: { cached_tokens?: number };
+    [key: string]: unknown;
   };
 }
 
@@ -208,7 +211,7 @@ export class OpenAIAdapter implements LLMClient {
 
         const choice = chunk.choices?.[0];
         if (choice) {
-          const delta = choice.delta;
+          const delta = choice.delta ?? {};
 
           // Text delta
           if (delta.content) {

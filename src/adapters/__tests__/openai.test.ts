@@ -233,6 +233,79 @@ describe('OpenAI adapter — multiple tool calls', () => {
   });
 });
 
+describe('OpenAI adapter - native search stream tolerance', () => {
+  it('skips url_citation annotations without corrupting text or tool-call accumulation', async () => {
+    const lines = [
+      `data: ${JSON.stringify({
+        choices: [{
+          index: 0,
+          delta: {
+            content: 'Found current context.',
+            annotations: [{
+              type: 'url_citation',
+              url_citation: {
+                url: 'https://public.example/search-result',
+                title: 'Search result',
+                content: 'Search result excerpt',
+                start_index: 0,
+                end_index: 5,
+              },
+            }],
+          },
+          finish_reason: null,
+        }],
+      })}`,
+      `data: ${JSON.stringify({
+        choices: [{
+          index: 0,
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: 'call_read',
+              type: 'function',
+              function: { name: 'read_range', arguments: '{"sheet":"Sheet1"' },
+            }],
+          },
+          finish_reason: null,
+        }],
+      })}`,
+      `data: ${JSON.stringify({
+        choices: [{
+          index: 0,
+          delta: {
+            tool_calls: [{ index: 0, function: { arguments: ',"address":"A1"}' } }],
+            annotations: [{ type: 'url_citation', url_citation: { url: 'https://public.example/second' } }],
+          },
+          finish_reason: null,
+        }],
+      })}`,
+      `data: ${JSON.stringify({
+        choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }],
+        usage: {
+          prompt_tokens: 30,
+          completion_tokens: 12,
+          server_tool_use: { web_search_requests: 1 },
+        },
+      })}`,
+      'data: [DONE]',
+    ];
+
+    const events = await collect(adapter, () => makeFetchResponse(lines));
+
+    expect(events.filter(e => e.type === 'error')).toHaveLength(0);
+    expect(events.filter(e => e.type === 'text-delta')).toEqual([
+      { type: 'text-delta', delta: 'Found current context.' },
+    ]);
+
+    const deltas = events.filter(e => e.type === 'tool-call-delta');
+    const args = deltas
+      .map(e => (e as { type: 'tool-call-delta'; argumentsDelta: string }).argumentsDelta)
+      .join('');
+    expect(JSON.parse(args)).toEqual({ sheet: 'Sheet1', address: 'A1' });
+    expect(events.find(e => e.type === 'done')).toMatchObject({ finishReason: 'tool_calls' });
+  });
+});
+
 describe('OpenAI adapter — HTTP error handling', () => {
   it('emits AuthError on 401', async () => {
     globalThis.fetch = async () =>

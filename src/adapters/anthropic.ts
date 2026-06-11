@@ -23,11 +23,11 @@ const API_VERSION = '2023-06-01';
 // ── Wire types (Anthropic SSE) ─────────────────────────────────────────────
 
 type AnthropicEvent =
-  | { type: 'message_start'; message: { usage: { input_tokens: number } } }
-  | { type: 'content_block_start'; index: number; content_block: { type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string } }
-  | { type: 'content_block_delta'; index: number; delta: { type: 'text_delta'; text: string } | { type: 'input_json_delta'; partial_json: string } }
+  | { type: 'message_start'; message: { usage?: { input_tokens?: number }; [key: string]: unknown } }
+  | { type: 'content_block_start'; index: number; content_block: { type: string; text?: unknown; id?: unknown; name?: unknown; [key: string]: unknown } }
+  | { type: 'content_block_delta'; index: number; delta: { type: string; text?: unknown; partial_json?: unknown; [key: string]: unknown } }
   | { type: 'content_block_stop'; index: number }
-  | { type: 'message_delta'; delta: { stop_reason: string }; usage: { output_tokens: number } }
+  | { type: 'message_delta'; delta: { stop_reason?: string }; usage?: { output_tokens?: number; [key: string]: unknown } }
   | { type: 'message_stop' }
   | { type: 'error'; error: { type: string; message: string } }
   | { type: 'ping' };
@@ -205,12 +205,12 @@ export class AnthropicAdapter implements LLMClient {
 
         switch (ev.type) {
           case 'message_start':
-            inputTokens = ev.message.usage.input_tokens;
+            inputTokens = ev.message.usage?.input_tokens ?? 0;
             break;
 
           case 'content_block_start': {
             const cb = ev.content_block;
-            if (cb.type === 'tool_use') {
+            if (cb.type === 'tool_use' && typeof cb.id === 'string' && typeof cb.name === 'string') {
               toolAccum[ev.index] = { id: cb.id, name: cb.name, argsBuf: '' };
               yield { type: 'tool-call-start', index: ev.index, id: cb.id, name: cb.name };
             }
@@ -219,11 +219,11 @@ export class AnthropicAdapter implements LLMClient {
 
           case 'content_block_delta': {
             const d = ev.delta;
-            if (d.type === 'text_delta') {
-              yield { type: 'text-delta', delta: d.text };
-            } else if (d.type === 'input_json_delta') {
+            if (d.type === 'text_delta' && typeof d.text === 'string') {
+              if (d.text) yield { type: 'text-delta', delta: d.text };
+            } else if (d.type === 'input_json_delta' && typeof d.partial_json === 'string') {
               const acc = toolAccum[ev.index];
-              if (acc) {
+              if (acc && d.partial_json) {
                 acc.argsBuf += d.partial_json;
                 yield { type: 'tool-call-delta', index: ev.index, argumentsDelta: d.partial_json };
               }
@@ -238,7 +238,7 @@ export class AnthropicAdapter implements LLMClient {
             break;
 
           case 'message_delta': {
-            const outputTokens = ev.usage.output_tokens;
+            const outputTokens = ev.usage?.output_tokens ?? 0;
             yield {
               type: 'usage',
               inputTokens,

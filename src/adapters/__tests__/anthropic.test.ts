@@ -135,6 +135,61 @@ describe('Anthropic adapter — OpenAI normalization conformance', () => {
   });
 });
 
+describe('Anthropic adapter - native search stream tolerance', () => {
+  it('skips server search blocks without corrupting text or client tool calls', async () => {
+    mockFetch(sseLines([
+      { type: 'message_start', message: { id: 'msg_1', type: 'message' } },
+      { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+      { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'I will check that.' } },
+      { type: 'content_block_stop', index: 0 },
+      { type: 'content_block_start', index: 1, content_block: { type: 'server_tool_use', id: 'srvtoolu_1', name: 'web_search' } },
+      { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: '{"query":"latest data"}' } },
+      { type: 'content_block_stop', index: 1 },
+      {
+        type: 'content_block_start',
+        index: 2,
+        content_block: {
+          type: 'web_search_tool_result',
+          tool_use_id: 'srvtoolu_1',
+          content: [{ type: 'web_search_result', title: 'Result', url: 'https://public.example' }],
+        },
+      },
+      { type: 'content_block_stop', index: 2 },
+      { type: 'content_block_start', index: 3, content_block: { type: 'tool_use', id: 'toolu_read', name: 'read_range' } },
+      { type: 'content_block_delta', index: 3, delta: { type: 'input_json_delta', partial_json: '{"sheet":"Sheet1"' } },
+      { type: 'content_block_delta', index: 3, delta: { type: 'input_json_delta', partial_json: ',"address":"A1"}' } },
+      { type: 'content_block_stop', index: 3 },
+      {
+        type: 'message_delta',
+        delta: { stop_reason: 'tool_use' },
+        usage: {
+          output_tokens: 12,
+          server_tool_use: { web_search_requests: 1 },
+        },
+      },
+      { type: 'message_stop' },
+    ]));
+
+    const events = await collect(adapter);
+
+    expect(events.filter(e => e.type === 'error')).toHaveLength(0);
+    expect(events.filter(e => e.type === 'text-delta')).toEqual([
+      { type: 'text-delta', delta: 'I will check that.' },
+    ]);
+    expect(events.filter(e => e.type === 'tool-call-start')).toEqual([
+      { type: 'tool-call-start', index: 3, id: 'toolu_read', name: 'read_range' },
+    ]);
+
+    const args = events
+      .filter(e => e.type === 'tool-call-delta')
+      .map(e => (e as { argumentsDelta: string }).argumentsDelta)
+      .join('');
+    expect(JSON.parse(args)).toEqual({ sheet: 'Sheet1', address: 'A1' });
+    expect(events.find(e => e.type === 'usage')).toMatchObject({ inputTokens: 0, outputTokens: 12 });
+    expect(events.find(e => e.type === 'done')).toMatchObject({ finishReason: 'tool_calls' });
+  });
+});
+
 describe('Anthropic adapter — HTTP error handling', () => {
   it('emits AuthError on 401', async () => {
     globalThis.fetch = async () =>
