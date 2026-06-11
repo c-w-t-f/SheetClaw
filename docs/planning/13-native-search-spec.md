@@ -138,3 +138,10 @@ For each v1 provider, from a sideloaded taskpane with a real key, record in Appe
 | Date | Provider | Model / route | Result | Notes |
 |---|---|---|---|---|
 | 2026-06-11 | `generic` (OpenRouter) | `openai/gpt-5.5` via OpenRouter | Pass | User-confirmed sideloaded run with Search ON: native search returned grounded results; client tools including `read_range`/confirmed `write_range` still worked in the same search-enabled session; streaming completed without adapter errors or tool-call corruption; provider billing/cost visibility looked as expected. |
+
+## Appendix B — Manual N-9 results
+
+| Date | Tier | Provider / model | Result | Notes |
+|---|---|---|---|---|
+| 2026-06-11 | Native | OpenRouter / `openai/gpt-5.5` | Pass | User-confirmed sideloaded Doc 11-style flow with Search ON, native search, choice menu, fetch, and workbook read/write tools. |
+| 2026-06-11 | BYOK | DeepSeek / `deepseek-v4-pro` with configured search provider | Pass with caveat | User-confirmed sideloaded Doc 11-style BYOK flow with Search ON, choice menu, fetch/write/read verification, and workbook output. Caveat: occasional truncation errors may still occur. |
