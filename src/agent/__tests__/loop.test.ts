@@ -6,6 +6,7 @@ import { useStore } from '../../store/index';
 import type { LLMClient, LLMStreamEvent, LLMRequest, ProviderConfig } from '../../types';
 import type { ToolSpec, ToolResult } from '../../types';
 import type { ToolExecutor } from '../../workbook/executor';
+import { WEB_SEARCH } from '../../web/search';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -65,6 +66,20 @@ function makeTwoTurnClient(
   };
 }
 
+function makeCapturingClient(
+  requests: LLMRequest[],
+  events: AsyncIterable<LLMStreamEvent> = textStream('ok')
+): LLMClient {
+  return {
+    chat: (req: LLMRequest) => {
+      requests.push(req);
+      return events;
+    },
+    listModels: async () => [],
+    capabilities: () => ({ supportsTools: true, supportsStreaming: true, supportsOAuth: false, nativeUsage: false, toolFormat: 'openai' as const }),
+  };
+}
+
 function makeMultiTurnClient(events: AsyncIterable<LLMStreamEvent>[]): LLMClient {
   let call = 0;
   return {
@@ -80,6 +95,16 @@ const CFG: ProviderConfig = {
   authMode: 'none', authStateRef: '',
   contextLimits: { maxContextTokens: 128000, historyTokenCap: 100000, maxInlineSheetCells: 5000 },
   maxOutputTokens: 4096,
+};
+
+const GENERIC_CFG: ProviderConfig = {
+  ...CFG,
+  provider: 'generic',
+  label: 'Generic / OpenRouter',
+  baseUrl: 'https://openrouter.ai/api/v1',
+  model: 'openai/gpt-4o-mini',
+  authMode: 'oauth',
+  authStateRef: 'xl.auth.generic',
 };
 
 const SCOPE = { workbookId: 'wb1' };
@@ -103,6 +128,8 @@ function noop<T>(fn: (ctx: Excel.RequestContext) => Promise<T>): Promise<T> {
 beforeEach(() => {
   useStore.getState().setSession(null);
   useStore.getState().clearMessages();
+  useStore.getState().setWebSearchEnabled(false);
+  useStore.getState().setAppConfig({ webAccess: { provider: 'none', readerFallback: false } });
 });
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -156,6 +183,109 @@ describe('AgentLoop — text-only run', () => {
     );
     await loop.start('Test', SCOPE, makeSingleTurnClient(textStream('ok')), CFG);
     expect(loop.isRunning()).toBe(false);
+  });
+});
+
+describe('AgentLoop - web search gating', () => {
+  const readRange: ToolSpec = {
+    name: 'read_range',
+    description: 'Read cells',
+    parameters: { type: 'object', properties: {}, required: [] },
+    mutating: false,
+  };
+  const fetchUrl: ToolSpec = {
+    name: 'fetch_url',
+    description: 'Fetch URL',
+    parameters: { type: 'object', properties: {}, required: [] },
+    mutating: false,
+    runtime: 'none',
+  };
+  const webTools = [readRange, WEB_SEARCH, fetchUrl];
+
+  it('keeps Doc 11 behavior for BYOK-tier providers with a configured search provider', async () => {
+    const requests: LLMRequest[] = [];
+    const loop = new AgentLoop(
+      makeRegistry(),
+      makeExecutor(webTools) as unknown as ToolExecutor,
+      new SnapshotManager(),
+      noop
+    );
+
+    useStore.getState().setAppConfig({ webAccess: { provider: 'wikipedia', readerFallback: false } });
+    useStore.getState().setWebSearchEnabled(true);
+
+    await loop.start('Search with BYOK tier', SCOPE, makeCapturingClient(requests), CFG);
+
+    expect(requests[0].tools.map(t => t.name)).toEqual([
+      'read_range',
+      'web_search',
+      'fetch_url',
+      'request_user_choice',
+    ]);
+    expect(useStore.getState().currentSession?.webSearchEnabled).toBe(true);
+  });
+
+  it('suppresses client web_search on the native tier even when a BYOK provider is configured', async () => {
+    const requests: LLMRequest[] = [];
+    const loop = new AgentLoop(
+      makeRegistry(),
+      makeExecutor(webTools) as unknown as ToolExecutor,
+      new SnapshotManager(),
+      noop
+    );
+
+    useStore.getState().setAppConfig({ webAccess: { provider: 'wikipedia', readerFallback: false } });
+    useStore.getState().setWebSearchEnabled(true);
+
+    await loop.start('Search with native tier', SCOPE, makeCapturingClient(requests), GENERIC_CFG);
+
+    expect(requests[0].tools.map(t => t.name)).toEqual([
+      'read_range',
+      'fetch_url',
+      'request_user_choice',
+    ]);
+    expect(useStore.getState().currentSession?.webSearchEnabled).toBe(true);
+  });
+
+  it('removes web tools when BYOK-tier search is unavailable even if the session toggle was on', async () => {
+    const requests: LLMRequest[] = [];
+    const loop = new AgentLoop(
+      makeRegistry(),
+      makeExecutor(webTools) as unknown as ToolExecutor,
+      new SnapshotManager(),
+      noop
+    );
+
+    useStore.getState().setWebSearchEnabled(true);
+
+    await loop.start('Search unavailable', SCOPE, makeCapturingClient(requests), CFG);
+
+    expect(requests[0].tools.map(t => t.name)).toEqual(['read_range', 'request_user_choice']);
+    expect(useStore.getState().currentSession?.webSearchEnabled).toBe(false);
+  });
+
+  it('removes web tools when the toggle is off on both native and BYOK tiers', async () => {
+    const byokRequests: LLMRequest[] = [];
+    const nativeRequests: LLMRequest[] = [];
+
+    useStore.getState().setAppConfig({ webAccess: { provider: 'wikipedia', readerFallback: false } });
+
+    await new AgentLoop(
+      makeRegistry(),
+      makeExecutor(webTools) as unknown as ToolExecutor,
+      new SnapshotManager(),
+      noop
+    ).start('BYOK off', SCOPE, makeCapturingClient(byokRequests), CFG);
+
+    await new AgentLoop(
+      makeRegistry(),
+      makeExecutor(webTools) as unknown as ToolExecutor,
+      new SnapshotManager(),
+      noop
+    ).start('Native off', SCOPE, makeCapturingClient(nativeRequests), GENERIC_CFG);
+
+    expect(byokRequests[0].tools.map(t => t.name)).toEqual(['read_range', 'request_user_choice']);
+    expect(nativeRequests[0].tools.map(t => t.name)).toEqual(['read_range', 'request_user_choice']);
   });
 });
 

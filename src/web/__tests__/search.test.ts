@@ -1,5 +1,6 @@
 ﻿import { describe, expect, it, vi } from 'vitest';
 import { filterToolsForRun } from '../../agent/tool-filter';
+import { resolveSearchToggle } from '../../adapters/native-search';
 import type { ToolSpec } from '../../types';
 import { createWebSearchHandler, WEB_SEARCH } from '../search';
 import { tavilyProvider } from '../providers/tavily';
@@ -216,14 +217,30 @@ describe('web tool exposure gating', () => {
   ];
 
   it('toggle off removes web tools from the LLM request', () => {
-    expect(filterToolsForRun(tools, false, true).map(t => t.name)).toEqual(['read_range']);
+    const search = resolveSearchToggle({ provider: 'ollama', model: 'llama3.2', byokReady: true });
+    expect(filterToolsForRun(tools, false, search).map(t => t.name)).toEqual(['read_range']);
   });
 
   it('missing provider key removes web tools even if toggle is on', () => {
-    expect(filterToolsForRun(tools, true, false).map(t => t.name)).toEqual(['read_range']);
+    const search = resolveSearchToggle({ provider: 'ollama', model: 'llama3.2', byokReady: false });
+    expect(filterToolsForRun(tools, true, search).map(t => t.name)).toEqual(['read_range']);
   });
 
-  it('configured provider and toggle on exposes both web tools', () => {
-    expect(filterToolsForRun(tools, true, true).map(t => t.name)).toEqual(['read_range', 'web_search', 'fetch_url']);
+  it('BYOK tier with configured provider and toggle on exposes both web tools', () => {
+    const search = resolveSearchToggle({ provider: 'ollama', model: 'llama3.2', byokReady: true });
+    expect(filterToolsForRun(tools, true, search).map(t => t.name)).toEqual(['read_range', 'web_search', 'fetch_url']);
+  });
+
+  it('native tier with toggle on suppresses client web_search but exposes fetch_url', () => {
+    const search = resolveSearchToggle({ provider: 'generic', model: 'openai/gpt-4o-mini', byokReady: true });
+    expect(filterToolsForRun(tools, true, search).map(t => t.name)).toEqual(['read_range', 'fetch_url']);
+  });
+
+  it('Qwen unsupported models fall back to BYOK gating', () => {
+    const unavailable = resolveSearchToggle({ provider: 'qwen', model: 'qwen-plus', byokReady: false });
+    const configured = resolveSearchToggle({ provider: 'qwen', model: 'qwen-plus', byokReady: true });
+
+    expect(filterToolsForRun(tools, true, unavailable).map(t => t.name)).toEqual(['read_range']);
+    expect(filterToolsForRun(tools, true, configured).map(t => t.name)).toEqual(['read_range', 'web_search', 'fetch_url']);
   });
 });

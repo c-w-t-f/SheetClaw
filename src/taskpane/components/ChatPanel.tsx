@@ -15,6 +15,7 @@ import {
 import { useStore } from '../../store/index';
 import type { Message, CellDiff } from '../../types';
 import { createAdapter } from '../../adapters/index';
+import { getUnavailableSearchToggleHint, resolveSearchToggle } from '../../adapters/native-search';
 import { getTaskpaneAgentLoop, getTaskpaneWorkbookLayer } from '../workbookLayer';
 
 const STATUS_RUNNING = new Set(['building', 'calling_llm', 'parsing', 'executing_tool']);
@@ -78,7 +79,7 @@ function PillIcon({ children }: { children: ReactNode }) {
 export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target?: 'search') => void }) {
   const [input, setInput] = useState('');
   const [initError, setInitError] = useState<string | null>(null);
-  const [searchHint, setSearchHint] = useState(false);
+  const [searchHint, setSearchHint] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement | HTMLSpanElement>(null);
   const [textareaHeight, setTextareaHeight] = useState(32);
@@ -110,13 +111,18 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
   const setWebSearchEnabled = useStore(s => s.setWebSearchEnabled);
   const authStates = useStore(s => s.authStates);
   const activeProviderReady = useStore(s => s.isProviderReady(s.appConfig.activeProvider));
-  const searchProviderReady = useStore(s =>
+  const byokSearchReady = useStore(s =>
     s.appConfig.webAccess.provider !== 'none' && s.isSearchProviderReady(s.appConfig.webAccess.provider)
   );
 
   const isRunning = session ? STATUS_RUNNING.has(session.status) : false;
   const awaitingConfirm = session?.status === 'awaiting_confirmation';
   const activeProvider = providers[appConfig.activeProvider];
+  const searchToggle = resolveSearchToggle({
+    provider: appConfig.activeProvider,
+    model: activeProvider?.model ?? '',
+    byokReady: byokSearchReady,
+  });
   const modelReady = !!activeProvider?.model.trim();
   const providerReady = !!activeProvider?.enabled && activeProviderReady && modelReady;
   const providerWarning = !activeProvider?.enabled
@@ -126,7 +132,7 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
       : !modelReady
         ? 'Select a model in Settings before chatting.'
         : '';
-  const effectiveSearchEnabled = webSearchEnabled && searchProviderReady;
+  const effectiveSearchEnabled = webSearchEnabled && searchToggle.available;
 
   useEffect(() => {
     getTaskpaneWorkbookLayer().registry.refresh().catch(e => {
@@ -137,6 +143,12 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
+
+  useEffect(() => {
+    if (webSearchEnabled && !searchToggle.available) {
+      setWebSearchEnabled(false);
+    }
+  }, [searchToggle.available, setWebSearchEnabled, webSearchEnabled]);
 
   async function send() {
     if (!input.trim() || isRunning || !providerReady) return;
@@ -220,7 +232,7 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
 
       {searchHint && (
         <MessageBar intent="warning">
-          <MessageBarBody>Web search needs a provider key. Configure it in Settings - Search.</MessageBarBody>
+          <MessageBarBody>{searchHint}</MessageBarBody>
           {onOpenSettings && (
             <MessageBarActions>
               <Button size="small" appearance="subtle" onClick={() => onOpenSettings('search')}>Open Settings</Button>
@@ -325,16 +337,16 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
               size="small"
               appearance="secondary"
               aria-pressed={effectiveSearchEnabled}
-              aria-disabled={!searchProviderReady}
-              style={composerPillStyle(effectiveSearchEnabled, !searchProviderReady)}
+              aria-disabled={!searchToggle.available}
+              style={composerPillStyle(effectiveSearchEnabled, !searchToggle.available)}
               icon={<PillIcon>🌐</PillIcon>}
               onClick={() => {
-                if (!searchProviderReady) {
+                if (!searchToggle.available) {
                   setWebSearchEnabled(false);
-                  setSearchHint(true);
+                  setSearchHint(getUnavailableSearchToggleHint(activeProvider?.label ?? appConfig.activeProvider, searchToggle));
                   return;
                 }
-                setSearchHint(false);
+                setSearchHint(null);
                 setWebSearchEnabled(!webSearchEnabled);
               }}
             >

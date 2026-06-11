@@ -22,6 +22,7 @@ import { findPricing, computeCost } from '../pricing/index';
 import { filterToolsForRun } from './tool-filter';
 import { REQUEST_USER_CHOICE, parsePendingChoice } from './choice';
 import { ToolValidationError } from '../workbook/executor';
+import { resolveSearchToggle } from '../adapters/native-search';
 
 const MAX_ITERATIONS = 25;
 export type LoopRunner = <T>(fn: (ctx: Excel.RequestContext) => Promise<T>) => Promise<T>;
@@ -66,7 +67,8 @@ export class AgentLoop {
     this.abortController = ac;
     const store = useStore.getState();
     const webProvider = store.appConfig.webAccess.provider;
-    const webConfigured = webProvider !== 'none' && store.isSearchProviderReady(webProvider);
+    const byokReady = webProvider !== 'none' && store.isSearchProviderReady(webProvider);
+    const searchToggle = resolveSearchToggle({ provider: cfg.provider, model: cfg.model, byokReady });
 
     const session: AgentSession = {
       id: ulid(),
@@ -79,7 +81,7 @@ export class AgentLoop {
       model: cfg.model,
       messageIds: [],
       tokenBudget: { used: 0, window: cfg.contextLimits.maxContextTokens },
-      webSearchEnabled: store.webSearchEnabled && webConfigured,
+      webSearchEnabled: store.webSearchEnabled && searchToggle.available,
       totals: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
     };
 
@@ -181,9 +183,10 @@ export class AgentLoop {
   ): Promise<void> {
     const store = useStore.getState();
     const webProvider = store.appConfig.webAccess.provider;
-    const webConfigured = webProvider !== 'none' && store.isSearchProviderReady(webProvider);
+    const byokReady = webProvider !== 'none' && store.isSearchProviderReady(webProvider);
+    const searchToggle = resolveSearchToggle({ provider: cfg.provider, model: cfg.model, byokReady });
     const toolSpecs = [
-      ...filterToolsForRun(this.executor.getToolSpecs(), session.webSearchEnabled, webConfigured),
+      ...filterToolsForRun(this.executor.getToolSpecs(), session.webSearchEnabled, searchToggle),
       REQUEST_USER_CHOICE,
     ];
 
