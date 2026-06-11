@@ -16,6 +16,7 @@ import { useStore } from '../../store/index';
 import type { Message, CellDiff } from '../../types';
 import { createAdapter } from '../../adapters/index';
 import { getUnavailableSearchToggleHint, resolveSearchToggle } from '../../adapters/native-search';
+import type { ChoiceSelection } from '../../agent/loop';
 import { getTaskpaneAgentLoop, getTaskpaneWorkbookLayer } from '../workbookLayer';
 
 const STATUS_RUNNING = new Set(['building', 'calling_llm', 'parsing', 'executing_tool']);
@@ -171,7 +172,7 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
   function stop() { getTaskpaneAgentLoop().stop(); }
   function applyConfirm() { getTaskpaneAgentLoop().resolveConfirmation('apply'); }
   function cancelConfirm() { getTaskpaneAgentLoop().resolveConfirmation('cancel'); }
-  function resolveChoice(ids: string[]) { getTaskpaneAgentLoop().resolveChoice(ids); }
+  function resolveChoice(selection: ChoiceSelection) { getTaskpaneAgentLoop().resolveChoice(selection); }
   function dismissChoice() { getTaskpaneAgentLoop().resolveChoice('dismiss'); }
   async function continueRun() {
     if (!session) return;
@@ -579,11 +580,14 @@ function ChoiceBlock({
   onDismiss,
 }: {
   choice: NonNullable<import('../../types').AgentSession['pendingChoice']>;
-  onContinue: (ids: string[]) => void;
+  onContinue: (selection: ChoiceSelection) => void;
   onDismiss: () => void;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
+  const [otherText, setOtherText] = useState('');
   const selectedSet = new Set(selected);
+  const selectedOther = choice.options.find(option => option.requiresText && selectedSet.has(option.id));
+  const canContinue = selected.length > 0 && (!selectedOther || otherText.trim().length > 0);
 
   function toggle(id: string) {
     if (choice.allowMultiple) {
@@ -609,41 +613,56 @@ function ChoiceBlock({
         {choice.options.map((option, index) => {
           const active = selectedSet.has(option.id);
           return (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => toggle(option.id)}
-              aria-pressed={active}
-              style={{
-                textAlign: 'left',
-                border: `1px solid ${active ? tokens.colorBrandStroke1 : tokens.colorNeutralStroke1}`,
-                background: active ? tokens.colorBrandBackground2 : tokens.colorNeutralBackground2,
-                color: tokens.colorNeutralForeground1,
-                borderRadius: 6,
-                padding: 8,
-                cursor: 'pointer',
-                display: 'flex',
-                gap: 8,
-                minWidth: 0,
-              }}
-            >
-              <Caption1 style={{ color: tokens.colorNeutralForeground3, width: 18, flexShrink: 0 }}>
-                {index + 1}.
-              </Caption1>
-              <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                <Body1Strong style={{ overflowWrap: 'anywhere' }}>{option.label}</Body1Strong>
-                {option.description && (
-                  <Caption1 style={{ color: tokens.colorNeutralForeground3, overflowWrap: 'anywhere' }}>
-                    {option.description}
-                  </Caption1>
-                )}
-              </span>
-            </button>
+            <div key={option.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => toggle(option.id)}
+                aria-pressed={active}
+                style={{
+                  textAlign: 'left',
+                  border: `1px solid ${active ? tokens.colorBrandStroke1 : tokens.colorNeutralStroke1}`,
+                  background: active ? tokens.colorBrandBackground2 : tokens.colorNeutralBackground2,
+                  color: tokens.colorNeutralForeground1,
+                  borderRadius: 6,
+                  padding: 8,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  gap: 8,
+                  minWidth: 0,
+                }}
+              >
+                <Caption1 style={{ color: tokens.colorNeutralForeground3, width: 18, flexShrink: 0 }}>
+                  {index + 1}.
+                </Caption1>
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                  <Body1Strong style={{ overflowWrap: 'anywhere' }}>{option.label}</Body1Strong>
+                  {option.description && (
+                    <Caption1 style={{ color: tokens.colorNeutralForeground3, overflowWrap: 'anywhere' }}>
+                      {option.description}
+                    </Caption1>
+                  )}
+                </span>
+              </button>
+              {option.requiresText && active && (
+                <Textarea
+                  value={otherText}
+                  onChange={(_, d) => setOtherText(d.value)}
+                  placeholder="Specify your requirements..."
+                  resize="vertical"
+                  rows={3}
+                  style={{ width: '100%' }}
+                />
+              )}
+            </div>
           );
         })}
       </div>
       <div style={{ display: 'flex', gap: 8 }}>
-        <Button appearance="primary" disabled={selected.length === 0} onClick={() => onContinue(selected)}>
+        <Button
+          appearance="primary"
+          disabled={!canContinue}
+          onClick={() => onContinue({ ids: selected, otherText: otherText.trim() || undefined })}
+        >
           Continue
         </Button>
         <Button appearance="secondary" onClick={onDismiss}>Dismiss</Button>

@@ -26,6 +26,10 @@ import { resolveSearchToggle } from '../adapters/native-search';
 
 const MAX_ITERATIONS = 25;
 export type LoopRunner = <T>(fn: (ctx: Excel.RequestContext) => Promise<T>) => Promise<T>;
+export interface ChoiceSelection {
+  ids: string[];
+  otherText?: string;
+}
 
 // ── Tool-call accumulator for streaming ────────────────────────────────────
 
@@ -43,7 +47,7 @@ interface StreamResult {
 export class AgentLoop {
   private abortController: AbortController | null = null;
   private confirmationResolve: ((d: 'apply' | 'cancel') => void) | null = null;
-  private choiceResolve: ((d: { kind: 'select'; ids: string[] } | { kind: 'dismiss' }) => void) | null = null;
+  private choiceResolve: ((d: { kind: 'select'; selection: ChoiceSelection } | { kind: 'dismiss' }) => void) | null = null;
   private runner: LoopRunner;
 
   constructor(
@@ -161,11 +165,14 @@ export class AgentLoop {
     this.confirmationResolve = null;
   }
 
-  resolveChoice(ids: string[] | 'dismiss'): void {
-    if (ids === 'dismiss') {
+  resolveChoice(selection: string[] | ChoiceSelection | 'dismiss'): void {
+    if (selection === 'dismiss') {
       this.choiceResolve?.({ kind: 'dismiss' });
     } else {
-      this.choiceResolve?.({ kind: 'select', ids });
+      this.choiceResolve?.({
+        kind: 'select',
+        selection: Array.isArray(selection) ? { ids: selection } : selection,
+      });
     }
     this.choiceResolve = null;
   }
@@ -380,13 +387,15 @@ export class AgentLoop {
         return;
       }
 
-      const selected = pendingChoice.options.filter(option => decision.ids.includes(option.id));
+      const selected = pendingChoice.options.filter(option => decision.selection.ids.includes(option.id));
+      const otherText = decision.selection.otherText?.trim();
       const result = {
         toolCallId: call.id,
         ok: true as const,
         data: {
           selected_ids: selected.map(option => option.id),
           selected_options: selected,
+          ...(otherText ? { other_text: otherText } : {}),
         },
       };
       this.append(session.id, msg<ToolResultMessage>(session.id, { role: 'tool', toolCallId: call.id, result }));
@@ -475,7 +484,7 @@ export class AgentLoop {
     });
   }
 
-  private waitForChoice(signal: AbortSignal): Promise<{ kind: 'select'; ids: string[] } | { kind: 'dismiss' }> {
+  private waitForChoice(signal: AbortSignal): Promise<{ kind: 'select'; selection: ChoiceSelection } | { kind: 'dismiss' }> {
     return new Promise((resolve, reject) => {
       this.choiceResolve = resolve;
       signal.addEventListener('abort', () => {

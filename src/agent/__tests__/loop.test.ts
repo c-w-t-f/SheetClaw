@@ -569,4 +569,40 @@ describe('AgentLoop - request_user_choice', () => {
     expect(toolMessage.result.ok).toBe(false);
     expect(toolMessage.result.error?.code).toBe('PermissionDenied');
   });
+
+  it('adds a required Other option and returns its custom text when selected', async () => {
+    const choiceArgs = JSON.stringify({
+      question: 'Pick a scope',
+      options: [{ id: 'country', label: 'Country' }, { id: 'region', label: 'Region' }],
+    });
+    const loop = new AgentLoop(
+      makeRegistry(),
+      makeExecutor() as unknown as ToolExecutor,
+      new SnapshotManager(),
+      noop
+    );
+
+    const run = loop.start('Pick', SCOPE, makeTwoTurnClient(
+      toolCallStream('choice_other', 'request_user_choice', choiceArgs),
+      textStream('Done.')
+    ), CFG);
+    await waitForStatus('awaiting_choice');
+
+    const pendingChoice = useStore.getState().currentSession?.pendingChoice;
+    const lastOption = pendingChoice ? pendingChoice.options[pendingChoice.options.length - 1] : undefined;
+    expect(lastOption).toMatchObject({
+      id: 'other',
+      label: 'Other',
+      requiresText: true,
+    });
+
+    loop.resolveChoice({ ids: ['other'], otherText: 'Use my custom country list.' });
+    await run;
+
+    const toolMessage = useStore.getState().messages.find(m => m.role === 'tool') as { result: ToolResult };
+    expect(toolMessage.result.data).toMatchObject({
+      selected_ids: ['other'],
+      other_text: 'Use my custom country list.',
+    });
+  });
 });

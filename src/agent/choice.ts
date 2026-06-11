@@ -5,6 +5,7 @@ export interface ChoiceOption {
   id: string;
   label: string;
   description?: string;
+  requiresText?: boolean;
 }
 
 export interface PendingChoice {
@@ -17,7 +18,7 @@ export interface PendingChoice {
 
 export const REQUEST_USER_CHOICE: ToolSpec = {
   name: 'request_user_choice',
-  description: "Show the user a menu and wait for their selection. Use when the request is ambiguous or when fetching everything would be large - e.g. multiple matching datasets, several granularities, or unclear target range. Derive options from information you actually found; include an 'other' escape option.",
+  description: "Show the user a menu and wait for their selection. Use when the request is ambiguous or when fetching everything would be large - e.g. multiple matching datasets, several granularities, or unclear target range. Derive options from information you actually found; always include an 'Other' option so the user can specify custom requirements.",
   parameters: {
     type: 'object',
     properties: {
@@ -66,7 +67,7 @@ function parseOptions(value: unknown): ChoiceOption[] {
   const options = value.map((item, index) => parseOption(item, index));
   const valid = options.filter((option): option is ChoiceOption => !!option);
   if (valid.length < 2) throw new ToolValidationError('"options" must contain at least 2 valid options.');
-  return valid;
+  return ensureOtherOption(valid);
 }
 
 function parseOption(value: unknown, index: number): ChoiceOption | null {
@@ -87,7 +88,30 @@ function parseOption(value: unknown, index: number): ChoiceOption | null {
     ...(typeof raw.description === 'string' && raw.description.trim()
       ? { description: raw.description.trim() }
       : {}),
+    ...(raw.requiresText === true ? { requiresText: true } : {}),
   };
+}
+
+function ensureOtherOption(options: ChoiceOption[]): ChoiceOption[] {
+  const otherIndex = options.findIndex(option => isOtherOption(option));
+  if (otherIndex >= 0) {
+    return options.map((option, index) => index === otherIndex ? { ...option, requiresText: true } : option);
+  }
+  return [
+    ...options,
+    {
+      id: 'other',
+      label: 'Other',
+      description: "I'll use your custom requirement or scope.",
+      requiresText: true,
+    },
+  ];
+}
+
+function isOtherOption(option: ChoiceOption): boolean {
+  const id = option.id.trim().toLowerCase();
+  const label = option.label.trim().toLowerCase();
+  return id === 'other' || id === 'others' || label === 'other' || label === 'others';
 }
 
 function parseBoolean(value: unknown, name: string): boolean {
