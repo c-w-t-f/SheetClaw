@@ -90,10 +90,12 @@
 
     <h2>Optional web search and URL fetching</h2>
     <p>
-      Web access is off by default. If you configure a search provider key in Settings
-      and enable Search for a chat session, SheetClaw may send search queries directly
-      from your device to the provider you selected. Search result links and snippets
-      may then be sent to your configured LLM provider as part of the chat context.
+      Web access is off by default. If you enable Search for a chat session, providers
+      with native web search may process search queries through the LLM provider you
+      already configured. For providers without native web search, SheetClaw uses the
+      search provider key you configure in Settings and sends queries directly from
+      your device to that selected provider. Search result links and snippets may then
+      be sent to your configured LLM provider as part of the chat context.
     </p>
     <p>
       If the agent fetches a URL, your device sends a request directly to that public
