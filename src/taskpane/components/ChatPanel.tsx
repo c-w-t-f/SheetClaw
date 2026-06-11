@@ -465,6 +465,7 @@ function EmptyChatState({
 function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system_notice';
+  const text = message.role === 'assistant' || message.role === 'user' ? message.text : '';
 
   if (message.role === 'tool_call') {
     return (
@@ -515,14 +516,176 @@ function MessageBubble({ message }: { message: Message }) {
       color: isUser ? tokens.colorNeutralForegroundOnBrand : tokens.colorNeutralForeground1,
       borderRadius: 8,
       padding: '8px 12px',
-      whiteSpace: 'pre-wrap',
       minWidth: 0,
       overflowWrap: 'anywhere',
       wordBreak: 'break-word',
     }}>
-      <Body1>{message.role === 'assistant' || message.role === 'user' ? message.text : ''}</Body1>
+      {message.role === 'assistant'
+        ? <MarkdownMessage text={text} />
+        : <Body1 style={{ whiteSpace: 'pre-wrap' }}>{text}</Body1>}
     </div>
   );
+}
+
+type MarkdownPart =
+  | { type: 'text'; text: string }
+  | { type: 'table'; headers: string[]; aligns: Array<'left' | 'right' | 'center'>; rows: string[][] };
+
+function MarkdownMessage({ text }: { text: string }) {
+  const parts = parseMarkdownTables(text);
+  if (parts.length === 1 && parts[0].type === 'text') {
+    return <Body1 style={{ whiteSpace: 'pre-wrap' }}>{text}</Body1>;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {parts.map((part, index) => part.type === 'text' ? (
+        part.text.trim() ? (
+          <Body1 key={index} style={{ whiteSpace: 'pre-wrap' }}>
+            {renderInlineMarkdown(part.text.trim())}
+          </Body1>
+        ) : null
+      ) : (
+        <MarkdownTable key={index} part={part} />
+      ))}
+    </div>
+  );
+}
+
+function MarkdownTable({ part }: { part: Extract<MarkdownPart, { type: 'table' }> }) {
+  return (
+    <div style={{
+      maxWidth: '100%',
+      overflowX: 'auto',
+      border: `1px solid ${tokens.colorNeutralStroke1}`,
+      borderRadius: 6,
+      background: tokens.colorNeutralBackground1,
+    }}>
+      <table style={{
+        width: '100%',
+        borderCollapse: 'collapse',
+        fontSize: 12,
+        lineHeight: 1.35,
+        minWidth: Math.min(720, Math.max(360, part.headers.length * 120)),
+      }}>
+        <thead>
+          <tr>
+            {part.headers.map((header, index) => (
+              <th
+                key={index}
+                style={{
+                  textAlign: part.aligns[index] ?? 'left',
+                  padding: '6px 8px',
+                  borderBottom: `1px solid ${tokens.colorNeutralStroke1}`,
+                  background: tokens.colorNeutralBackground2,
+                  fontWeight: 600,
+                  verticalAlign: 'top',
+                }}
+              >
+                {renderInlineMarkdown(header)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {part.rows.map((row, rowIndex) => (
+            <tr key={rowIndex}>
+              {part.headers.map((_, cellIndex) => (
+                <td
+                  key={cellIndex}
+                  style={{
+                    textAlign: part.aligns[cellIndex] ?? 'left',
+                    padding: '6px 8px',
+                    borderBottom: rowIndex === part.rows.length - 1 ? undefined : `1px solid ${tokens.colorNeutralStroke2}`,
+                    verticalAlign: 'top',
+                    overflowWrap: 'anywhere',
+                  }}
+                >
+                  {renderInlineMarkdown(row[cellIndex] ?? '')}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function parseMarkdownTables(text: string): MarkdownPart[] {
+  const lines = text.split(/\r?\n/);
+  const parts: MarkdownPart[] = [];
+  const textBuffer: string[] = [];
+
+  function flushText() {
+    if (textBuffer.length) {
+      parts.push({ type: 'text', text: textBuffer.join('\n') });
+      textBuffer.length = 0;
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const header = splitMarkdownRow(lines[i]);
+    const separator = i + 1 < lines.length ? parseSeparator(lines[i + 1]) : null;
+    if (header.length >= 2 && separator && separator.length === header.length) {
+      flushText();
+      const rows: string[][] = [];
+      i += 2;
+      while (i < lines.length) {
+        const row = splitMarkdownRow(lines[i]);
+        if (row.length === 0) break;
+        rows.push(normalizeTableRow(row, header.length));
+        i++;
+      }
+      i--;
+      parts.push({ type: 'table', headers: header, aligns: separator, rows });
+      continue;
+    }
+    textBuffer.push(lines[i]);
+  }
+
+  flushText();
+  return parts.length ? parts : [{ type: 'text', text }];
+}
+
+function splitMarkdownRow(line: string): string[] {
+  const trimmed = line.trim();
+  if (!trimmed.includes('|')) return [];
+  const withoutEdges = trimmed.replace(/^\|/, '').replace(/\|$/, '');
+  const cells = withoutEdges.split('|').map(cell => cell.trim());
+  return cells.some(Boolean) ? cells : [];
+}
+
+function parseSeparator(line: string): Array<'left' | 'right' | 'center'> | null {
+  const cells = splitMarkdownRow(line);
+  if (!cells.length) return null;
+  const aligns: Array<'left' | 'right' | 'center'> = [];
+  for (const cell of cells) {
+    const marker = cell.replace(/\s/g, '');
+    if (!/^:?-{3,}:?$/.test(marker)) return null;
+    aligns.push(marker.startsWith(':') && marker.endsWith(':') ? 'center' : marker.endsWith(':') ? 'right' : 'left');
+  }
+  return aligns;
+}
+
+function normalizeTableRow(row: string[], width: number): string[] {
+  const normalized = [...row];
+  while (normalized.length > width && normalized[normalized.length - 1] === '') normalized.pop();
+  return normalized.slice(0, width);
+}
+
+function renderInlineMarkdown(value: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  const pattern = /\*\*([^*]+)\*\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(value))) {
+    if (match.index > lastIndex) nodes.push(value.slice(lastIndex, match.index));
+    nodes.push(<strong key={match.index}>{match[1]}</strong>);
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < value.length) nodes.push(value.slice(lastIndex));
+  return nodes.length ? nodes : [value];
 }
 
 function ConfirmationBlock({
