@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { AnthropicAdapter } from '../anthropic';
+import { getNativeSearchCapability } from '../native-search';
 import { parseLenientToolCall } from '../ollama';
-import type { LLMStreamEvent, ToolSpec } from '../../types';
+import type { LLMRequest, LLMStreamEvent, ToolSpec } from '../../types';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,26 @@ async function collect(adapter: AnthropicAdapter): Promise<LLMStreamEvent[]> {
     new AbortController().signal
   )) events.push(ev);
   return events;
+}
+
+async function captureRequestBody(
+  adapter: AnthropicAdapter,
+  req: LLMRequest
+): Promise<Record<string, unknown>> {
+  let body: Record<string, unknown> | undefined;
+  globalThis.fetch = async (_url: RequestInfo | URL, init?: RequestInit) => {
+    body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+    return new Response(makeStream(sseLines([
+      { type: 'message_start', message: { usage: { input_tokens: 1 } } },
+      { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 1 } },
+      { type: 'message_stop' },
+    ])), { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+  };
+  for await (const _ev of adapter.chat(req, new AbortController().signal)) {
+    // Drain the stream so fetch runs.
+  }
+  if (!body) throw new Error('request body was not captured');
+  return body;
 }
 
 const adapter = new AnthropicAdapter({ apiKey: 'test' });
@@ -124,6 +145,47 @@ describe('Anthropic adapter — HTTP error handling', () => {
 });
 
 // ── Ollama lenient parser ──────────────────────────────────────────────────
+
+describe('Anthropic adapter - native search request mutations', () => {
+  const readRange: ToolSpec = {
+    name: 'read_range',
+    description: 'Read a range',
+    parameters: { type: 'object', properties: {}, required: [] },
+    mutating: false,
+  };
+
+  it('adds the Anthropic web search server tool only for the anthropic provider', async () => {
+    const body = await captureRequestBody(
+      new AnthropicAdapter({ apiKey: 'test', provider: 'anthropic' }),
+      {
+        model: 'claude-sonnet-4-6',
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [readRange],
+        nativeSearch: getNativeSearchCapability('anthropic', 'claude-sonnet-4-6'),
+      }
+    );
+
+    expect(body.tools).toEqual([
+      expect.objectContaining({ name: 'read_range' }),
+      { type: 'web_search_20250305', name: 'web_search', max_uses: 5 },
+    ]);
+  });
+
+  it('does not send the Anthropic mutation when the request capability belongs to another provider', async () => {
+    const body = await captureRequestBody(
+      new AnthropicAdapter({ apiKey: 'test', provider: 'anthropic' }),
+      {
+        model: 'claude-sonnet-4-6',
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [readRange],
+        nativeSearch: getNativeSearchCapability('generic', 'openai/gpt-4o-mini'),
+      }
+    );
+
+    expect(body.tools).toEqual([expect.objectContaining({ name: 'read_range' })]);
+    expect(JSON.stringify(body)).not.toContain('web_search_20250305');
+  });
+});
 
 const TOOLS: ToolSpec[] = [{
   name: 'read_range',

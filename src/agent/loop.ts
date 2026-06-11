@@ -338,6 +338,16 @@ export class AgentLoop {
   private async executeCall(call: ToolCall, session: AgentSession, signal: AbortSignal): Promise<void> {
     const scope = { workbookId: session.scope.workbookId };
 
+    if (session.provider === 'kimi' && session.webSearchEnabled && call.name === '$web_search') {
+      const result = {
+        toolCallId: call.id,
+        ok: true as const,
+        data: call.rawArguments ?? JSON.stringify(call.arguments),
+      };
+      this.append(session.id, msg<ToolResultMessage>(session.id, { role: 'tool', toolCallId: call.id, result }));
+      return;
+    }
+
     if (call.name === REQUEST_USER_CHOICE.name) {
       let pendingChoice: ReturnType<typeof parsePendingChoice>;
       try {

@@ -9,6 +9,7 @@ import type {
 } from '../types';
 import type { WorkbookRegistry } from '../workbook/registry';
 import { buildSystemPrompt } from './system-prompt';
+import { getNativeSearchCapability } from '../adapters/native-search';
 
 // ── Token estimation ───────────────────────────────────────────────────────
 // Rough character-to-token ratio; good enough for budget decisions.
@@ -23,6 +24,7 @@ export function estimateTokens(text: string): number {
 
 function toNormalized(messages: Message[]): NormalizedMessage[] {
   const out: NormalizedMessage[] = [];
+  const toolNames = new Map<string, string>();
   for (const m of messages) {
     switch (m.role) {
       case 'user':
@@ -34,18 +36,26 @@ function toNormalized(messages: Message[]): NormalizedMessage[] {
           name: tc.name,
           arguments: tc.arguments,
         }));
+        for (const tc of toolCalls) toolNames.set(tc.id, tc.name);
         out.push({ role: 'assistant', content: m.text, toolCalls: toolCalls.length ? toolCalls : undefined });
         break;
       }
+      case 'tool_call':
+        toolNames.set(m.toolCall.id, m.toolCall.name);
+        break;
       case 'tool': {
+        const toolName = toolNames.get(m.toolCallId) ?? m.result.toolCallId;
         const payload = m.result.ok
-          ? JSON.stringify(m.result.data)
+          ? toolName === '$web_search' && typeof m.result.data === 'string'
+            ? m.result.data
+            : JSON.stringify(m.result.data)
           : JSON.stringify(m.result.error);
         // Truncate large payloads to protect context budget
-        const truncated = payload.length > MAX_TOOL_RESULT_CHARS
-          ? payload.slice(0, MAX_TOOL_RESULT_CHARS) + `… (${payload.length - MAX_TOOL_RESULT_CHARS} chars truncated)`
-          : payload;
-        out.push({ role: 'tool', toolCallId: m.toolCallId, name: m.result.toolCallId, content: truncated });
+        const content = payload ?? '';
+        const truncated = content.length > MAX_TOOL_RESULT_CHARS
+          ? content.slice(0, MAX_TOOL_RESULT_CHARS) + `... (${content.length - MAX_TOOL_RESULT_CHARS} chars truncated)`
+          : content;
+        out.push({ role: 'tool', toolCallId: m.toolCallId, name: toolName, content: truncated });
         break;
       }
       // ToolCallMessage, ConfirmationMessage, SystemNoticeMessage are UI-only — skip
@@ -130,6 +140,7 @@ export class ContextBuilder {
       model: cfg.model,
       messages: withManifest,
       tools,
+      nativeSearch: session.webSearchEnabled ? getNativeSearchCapability(cfg.provider, cfg.model) : undefined,
       system,
       temperature: cfg.temperature,
       maxTokens: maxOutput,

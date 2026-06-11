@@ -7,11 +7,14 @@ import type {
   ToolSpec,
   ModelInfo,
   ProviderCapabilities,
+  ProviderKey,
 } from '../types';
+import { getAnthropicNativeSearchTool } from './native-search';
 
 export interface AnthropicAdapterConfig {
   apiKey: string;
   baseUrl?: string;
+  provider?: ProviderKey;
 }
 
 const DEFAULT_BASE = 'https://api.anthropic.com';
@@ -158,7 +161,11 @@ export class AnthropicAdapter implements LLMClient {
       messages: serializeMessages(userMessages),
     };
     if (system) body.system = system;
-    if (req.tools.length) body.tools = serializeTools(req.tools);
+    const nativeTool = getAnthropicNativeSearchTool(this.cfg.provider, req.nativeSearch);
+    if (req.tools.length || nativeTool) body.tools = [
+      ...serializeTools(req.tools),
+      ...(nativeTool ? [nativeTool] : []),
+    ];
     if (req.temperature !== undefined) body.temperature = req.temperature;
 
     let res: Response;

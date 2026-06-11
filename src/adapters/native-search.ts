@@ -1,4 +1,4 @@
-import type { ProviderKey } from '../types';
+import type { ProviderKey } from '../types/usage';
 
 export type NativeSearchKind =
   | 'openrouter-server-tool'
@@ -14,6 +14,29 @@ export interface NativeSearchCapability {
   modelSupportLabel?: string;
   costNote: string;
 }
+
+export type OpenAINativeToolEntry =
+  | { type: 'openrouter:web_search' }
+  | { type: 'builtin_function'; function: { name: '$web_search' } }
+  | {
+      type: 'web_search';
+      web_search: {
+        enable: boolean;
+        search_engine: string;
+        search_result: boolean;
+      };
+    };
+
+export type AnthropicNativeToolEntry = {
+  type: 'web_search_20250305';
+  name: 'web_search';
+  max_uses: number;
+};
+
+export type OpenAINativeBodyPatch = {
+  tools?: OpenAINativeToolEntry[];
+  body?: Record<string, unknown>;
+};
 
 export type SearchTier = 'native' | 'byok';
 
@@ -153,4 +176,48 @@ export function getUnavailableSearchToggleHint(
     return `${providerLabel} native search is not available for ${resolution.model || 'this model'}. ${resolution.nativeUnavailableReason} Select a supported model or configure a search API key in Settings - Search.`;
   }
   return `${providerLabel} has no native web search. Configure a search API key in Settings - Search to enable search.`;
+}
+
+export function getOpenAINativeSearchPatch(
+  activeProvider: ProviderKey | undefined,
+  capability: NativeSearchCapability | undefined
+): OpenAINativeBodyPatch {
+  if (!capability || capability.provider !== activeProvider) return {};
+
+  switch (capability.kind) {
+    case 'openrouter-server-tool':
+      return { tools: [{ type: 'openrouter:web_search' }] };
+    case 'kimi-builtin-function':
+      return { tools: [{ type: 'builtin_function', function: { name: '$web_search' } }] };
+    case 'qwen-enable-search':
+      return {
+        body: {
+          enable_search: true,
+          search_options: { forced_search: false, search_strategy: 'turbo' },
+        },
+      };
+    case 'glm-web-search-tool':
+      return {
+        tools: [{
+          type: 'web_search',
+          web_search: {
+            enable: true,
+            search_engine: 'search-prime',
+            search_result: true,
+          },
+        }],
+      };
+    case 'anthropic-server-tool':
+      return {};
+  }
+}
+
+export function getAnthropicNativeSearchTool(
+  activeProvider: ProviderKey | undefined,
+  capability: NativeSearchCapability | undefined
+): AnthropicNativeToolEntry | undefined {
+  if (!capability || capability.provider !== activeProvider || capability.kind !== 'anthropic-server-tool') {
+    return undefined;
+  }
+  return { type: 'web_search_20250305', name: 'web_search', max_uses: 5 };
 }

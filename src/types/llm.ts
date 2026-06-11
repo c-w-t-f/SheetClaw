@@ -1,4 +1,5 @@
 import type { ToolSpec } from './tool';
+import type { NativeSearchCapability } from '../adapters/native-search';
 
 // ── Normalized wire format between adapters and AgentLoop ──────────────────
 
@@ -20,6 +21,7 @@ export interface LLMRequest {
   model: string;
   messages: NormalizedMessage[];
   tools: ToolSpec[];
+  nativeSearch?: NativeSearchCapability;
   system?: string;
   temperature?: number;
   maxTokens?: number;

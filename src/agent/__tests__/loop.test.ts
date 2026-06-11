@@ -107,6 +107,16 @@ const GENERIC_CFG: ProviderConfig = {
   authStateRef: 'xl.auth.generic',
 };
 
+const KIMI_CFG: ProviderConfig = {
+  ...CFG,
+  provider: 'kimi',
+  label: 'Kimi',
+  baseUrl: 'https://api.moonshot.ai/v1',
+  model: 'kimi-k2.6',
+  authMode: 'apikey',
+  authStateRef: 'xl.auth.kimi',
+};
+
 const SCOPE = { workbookId: 'wb1' };
 
 async function waitForStatus(status: string): Promise<void> {
@@ -286,6 +296,48 @@ describe('AgentLoop - web search gating', () => {
 
     expect(byokRequests[0].tools.map(t => t.name)).toEqual(['read_range', 'request_user_choice']);
     expect(nativeRequests[0].tools.map(t => t.name)).toEqual(['read_range', 'request_user_choice']);
+  });
+
+  it('echoes Kimi $web_search arguments without executing a local tool', async () => {
+    const requests: LLMRequest[] = [];
+    const executor = {
+      getToolSpecs: () => webTools,
+      execute: async () => {
+        throw new Error('Kimi $web_search should not reach the executor');
+      },
+    };
+    let turn = 0;
+    const client: LLMClient = {
+      chat: (req: LLMRequest) => {
+        requests.push(req);
+        return turn++ === 0
+          ? toolCallStream('kimi_search_1', '$web_search', '{"query":"latest SheetClaw news"}')
+          : textStream('Search complete.');
+      },
+      listModels: async () => [],
+      capabilities: () => ({ supportsTools: true, supportsStreaming: true, supportsOAuth: false, nativeUsage: false, toolFormat: 'openai' as const }),
+    };
+
+    useStore.getState().setWebSearchEnabled(true);
+
+    await new AgentLoop(
+      makeRegistry(),
+      executor as unknown as ToolExecutor,
+      new SnapshotManager(),
+      noop
+    ).start('Search with Kimi', SCOPE, client, KIMI_CFG);
+
+    const toolMessage = useStore.getState().messages.find(m => m.role === 'tool') as { result: ToolResult };
+    expect(toolMessage.result.ok).toBe(true);
+    expect(toolMessage.result.data).toBe('{"query":"latest SheetClaw news"}');
+
+    const secondRequestToolResult = requests[1].messages.find(m => m.role === 'tool');
+    expect(secondRequestToolResult).toEqual({
+      role: 'tool',
+      toolCallId: 'kimi_search_1',
+      name: '$web_search',
+      content: '{"query":"latest SheetClaw news"}',
+    });
   });
 });
 

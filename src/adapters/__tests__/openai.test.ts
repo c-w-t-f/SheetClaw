@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { OpenAIAdapter } from '../openai';
-import type { LLMStreamEvent } from '../../types';
+import { getNativeSearchCapability } from '../native-search';
+import type { LLMRequest, LLMStreamEvent, ProviderKey, ToolSpec } from '../../types';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,41 @@ async function collect(adapter: OpenAIAdapter, fetchMock: () => Response): Promi
   return events;
 }
 
+async function captureRequestBody(
+  adapter: OpenAIAdapter,
+  req: LLMRequest
+): Promise<Record<string, unknown>> {
+  let body: Record<string, unknown> | undefined;
+  globalThis.fetch = async (_url: RequestInfo | URL, init?: RequestInit) => {
+    body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+    return makeFetchResponse([
+      `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1 } })}`,
+      'data: [DONE]',
+    ]);
+  };
+  for await (const _ev of adapter.chat(req, new AbortController().signal)) {
+    // Drain the stream so fetch runs.
+  }
+  if (!body) throw new Error('request body was not captured');
+  return body;
+}
+
+const READ_RANGE_TOOL: ToolSpec = {
+  name: 'read_range',
+  description: 'Read cells',
+  parameters: { type: 'object', properties: {}, required: [] },
+  mutating: false,
+};
+
+function nativeReq(provider: ProviderKey, model = 'model'): LLMRequest {
+  return {
+    model,
+    messages: [{ role: 'user', content: 'hi' }],
+    tools: [READ_RANGE_TOOL],
+    nativeSearch: getNativeSearchCapability(provider, model),
+  };
+}
+
 const adapter = new OpenAIAdapter({ baseUrl: 'https://api.openai.com/v1', apiKey: 'test' });
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -54,6 +90,74 @@ describe('OpenAI adapter — text streaming', () => {
 
     const done = events.find(e => e.type === 'done');
     expect(done).toMatchObject({ type: 'done', finishReason: 'stop' });
+  });
+});
+
+describe('OpenAI adapter - native search request mutations', () => {
+  it('adds only the OpenRouter server tool for the generic provider', async () => {
+    const body = await captureRequestBody(
+      new OpenAIAdapter({ baseUrl: 'https://openrouter.ai/api/v1', apiKey: 'test', provider: 'generic' }),
+      nativeReq('generic', 'openai/gpt-4o-mini')
+    );
+
+    expect(body.tools).toEqual([
+      expect.objectContaining({ type: 'function', function: expect.objectContaining({ name: 'read_range' }) }),
+      { type: 'openrouter:web_search' },
+    ]);
+    expect(body).not.toHaveProperty('enable_search');
+  });
+
+  it('adds only the Kimi builtin function for the kimi provider', async () => {
+    const body = await captureRequestBody(
+      new OpenAIAdapter({ baseUrl: 'https://api.moonshot.ai/v1', apiKey: 'test', provider: 'kimi' }),
+      nativeReq('kimi', 'kimi-k2.6')
+    );
+
+    expect(body.tools).toEqual([
+      expect.objectContaining({ type: 'function', function: expect.objectContaining({ name: 'read_range' }) }),
+      { type: 'builtin_function', function: { name: '$web_search' } },
+    ]);
+  });
+
+  it('adds Qwen enable_search body params without adding a server tool', async () => {
+    const body = await captureRequestBody(
+      new OpenAIAdapter({ baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1', apiKey: 'test', provider: 'qwen' }),
+      nativeReq('qwen', 'qwen3.5-plus')
+    );
+
+    expect(body.tools).toEqual([
+      expect.objectContaining({ type: 'function', function: expect.objectContaining({ name: 'read_range' }) }),
+    ]);
+    expect(body.enable_search).toBe(true);
+    expect(body.search_options).toEqual({ forced_search: false, search_strategy: 'turbo' });
+  });
+
+  it('adds only the GLM web_search tool for the glm provider', async () => {
+    const body = await captureRequestBody(
+      new OpenAIAdapter({ baseUrl: 'https://api.z.ai/api/paas/v4', apiKey: 'test', provider: 'glm' }),
+      nativeReq('glm', 'glm-4.7')
+    );
+
+    expect(body.tools).toEqual([
+      expect.objectContaining({ type: 'function', function: expect.objectContaining({ name: 'read_range' }) }),
+      {
+        type: 'web_search',
+        web_search: { enable: true, search_engine: 'search-prime', search_result: true },
+      },
+    ]);
+  });
+
+  it('does not send a native mutation to a different provider endpoint', async () => {
+    const body = await captureRequestBody(
+      new OpenAIAdapter({ baseUrl: 'https://api.z.ai/api/paas/v4', apiKey: 'test', provider: 'glm' }),
+      nativeReq('generic', 'openai/gpt-4o-mini')
+    );
+
+    expect(body.tools).toEqual([
+      expect.objectContaining({ type: 'function', function: expect.objectContaining({ name: 'read_range' }) }),
+    ]);
+    expect(JSON.stringify(body)).not.toContain('openrouter:web_search');
+    expect(body).not.toHaveProperty('enable_search');
   });
 });
 

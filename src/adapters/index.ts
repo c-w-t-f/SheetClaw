@@ -16,7 +16,7 @@ export function createAdapter(cfg: ProviderConfig, auth: string | AuthState = ''
   const apiKey = typeof auth === 'string' ? auth : getAuthCredential(auth);
   switch (cfg.provider) {
     case 'anthropic':
-      return new AnthropicAdapter({ apiKey, baseUrl: cfg.baseUrl });
+      return new AnthropicAdapter({ apiKey, baseUrl: cfg.baseUrl, provider: cfg.provider });
     case 'ollama':
       return new OllamaAdapter({ baseUrl: cfg.baseUrl });
     case 'openai':
@@ -29,6 +29,6 @@ export function createAdapter(cfg: ProviderConfig, auth: string | AuthState = ''
     case 'glm':
     case 'qwen':
     case 'llama':
-      return new OpenAIAdapter({ apiKey, baseUrl: cfg.baseUrl, extraHeaders: cfg.headers });
+      return new OpenAIAdapter({ apiKey, baseUrl: cfg.baseUrl, provider: cfg.provider, extraHeaders: cfg.headers });
   }
 }

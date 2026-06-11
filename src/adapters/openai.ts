@@ -7,13 +7,16 @@ import type {
   ToolSpec,
   ModelInfo,
   ProviderCapabilities,
+  ProviderKey,
 } from '../types';
+import { getOpenAINativeSearchPatch } from './native-search';
 
 // ── Provider config injected at construction ───────────────────────────────
 
 export interface OpenAIAdapterConfig {
   baseUrl: string;
   apiKey: string;
+  provider?: ProviderKey;
   extraHeaders?: Record<string, string>;
 }
 
@@ -56,10 +59,19 @@ function serializeTools(tools: ToolSpec[]) {
   }));
 }
 
+function serializeToolsWithNative(tools: ToolSpec[], nativeTools: unknown[] = []) {
+  return [...serializeTools(tools), ...nativeTools];
+}
+
 function serializeMessages(messages: NormalizedMessage[]): unknown[] {
   return messages.map(m => {
     if (m.role === 'tool') {
-      return { role: 'tool', tool_call_id: m.toolCallId, content: m.content };
+      return {
+        role: 'tool',
+        tool_call_id: m.toolCallId,
+        content: m.content,
+        ...(m.name === '$web_search' ? { name: m.name } : {}),
+      };
     }
     if (m.role === 'assistant' && m.toolCalls?.length) {
       return {
@@ -147,7 +159,9 @@ export class OpenAIAdapter implements LLMClient {
       stream: true,
       stream_options: { include_usage: true },
     };
-    if (req.tools.length) body.tools = serializeTools(req.tools);
+    const nativePatch = getOpenAINativeSearchPatch(this.cfg.provider, req.nativeSearch);
+    if (req.tools.length || nativePatch.tools?.length) body.tools = serializeToolsWithNative(req.tools, nativePatch.tools);
+    if (nativePatch.body) Object.assign(body, nativePatch.body);
     if (req.temperature !== undefined) body.temperature = req.temperature;
     if (req.maxTokens !== undefined) body.max_tokens = req.maxTokens;
 
