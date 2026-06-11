@@ -24,10 +24,6 @@ import {
 import { exportCsv } from '../../usage/export';
 import { storage } from '../../store/storage';
 
-function fmt(n: number, decimals = 2): string {
-  return n.toFixed(decimals);
-}
-
 function fmtTokens(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'k';
@@ -40,12 +36,12 @@ const breakdownTableStyle: CSSProperties = {
 };
 
 const nameColumnStyle: CSSProperties = {
-  width: '52%',
+  width: '60%',
   minWidth: 0,
 };
 
 const numericColumnStyle: CSSProperties = {
-  width: '16%',
+  width: '20%',
   textAlign: 'right',
   whiteSpace: 'nowrap',
 };
@@ -116,7 +112,6 @@ export default function UsageDashboard() {
         <>
           {/* Totals cards */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <TotalsCard label="Cost" value={`$${fmt(totals.costUsd, 4)}`} />
             <TotalsCard label="Tokens" value={fmtTokens(totals.totalTokens)} />
             <TotalsCard label="Turns" value={String(totals.turns)} />
             {totals.estimatedCount > 0 && (
@@ -182,7 +177,7 @@ function TotalsCard({ label, value, muted }: { label: string; value: string; mut
   );
 }
 
-function BreakdownTable({ title, rows }: { title: string; rows: Array<{ key: string; costUsd: number; totalTokens: number; turns: number }> }) {
+function BreakdownTable({ title, rows }: { title: string; rows: Array<{ key: string; totalTokens: number; turns: number }> }) {
   return (
     <div>
       <Body1Strong style={{ display: 'block', marginBottom: 4 }}>{title}</Body1Strong>
@@ -191,7 +186,6 @@ function BreakdownTable({ title, rows }: { title: string; rows: Array<{ key: str
           <TableRow>
             <TableHeaderCell style={nameColumnStyle}>Name</TableHeaderCell>
             <TableHeaderCell style={numericColumnStyle}>Tokens</TableHeaderCell>
-            <TableHeaderCell style={numericColumnStyle}>Cost</TableHeaderCell>
             <TableHeaderCell style={numericColumnStyle}>Turns</TableHeaderCell>
           </TableRow>
         </TableHeader>
@@ -200,7 +194,6 @@ function BreakdownTable({ title, rows }: { title: string; rows: Array<{ key: str
             <TableRow key={r.key}>
               <TableCell style={nameColumnStyle}><Caption1 style={modelNameStyle}>{r.key}</Caption1></TableCell>
               <TableCell style={numericColumnStyle}><Caption1>{fmtTokens(r.totalTokens)}</Caption1></TableCell>
-              <TableCell style={numericColumnStyle}><Caption1>${fmt(r.costUsd, 4)}</Caption1></TableCell>
               <TableCell style={numericColumnStyle}><Caption1>{r.turns}</Caption1></TableCell>
             </TableRow>
           ))}
@@ -210,8 +203,8 @@ function BreakdownTable({ title, rows }: { title: string; rows: Array<{ key: str
   );
 }
 
-function DaySparkline({ rows }: { rows: Array<{ day: string; costUsd: number; totalTokens: number }> }) {
-  const maxCost = Math.max(...rows.map(r => r.costUsd), 0.00001);
+function DaySparkline({ rows }: { rows: Array<{ day: string; totalTokens: number }> }) {
+  const maxTokens = Math.max(...rows.map(r => r.totalTokens), 1);
   return (
     <div>
       <Body1Strong style={{ display: 'block', marginBottom: 4 }}>By day</Body1Strong>
@@ -219,11 +212,11 @@ function DaySparkline({ rows }: { rows: Array<{ day: string; costUsd: number; to
         {rows.map(r => (
           <div
             key={r.day}
-            title={`${r.day}: $${fmt(r.costUsd, 4)} · ${fmtTokens(r.totalTokens)} tok`}
+            title={`${r.day}: ${fmtTokens(r.totalTokens)} tok`}
             style={{
               flex: 1,
               background: tokens.colorBrandBackground,
-              height: `${Math.max(4, (r.costUsd / maxCost) * 100)}%`,
+              height: `${Math.max(4, (r.totalTokens / maxTokens) * 100)}%`,
               borderRadius: 2,
               opacity: 0.8,
             }}

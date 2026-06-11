@@ -14,7 +14,6 @@ export default function Footer() {
   if (!totals && !session) return null;
 
   const tokenCount = totals ? totals.inputTokens + totals.outputTokens : 0;
-  const cost = totals?.costUsd ?? 0;
   const model = session?.model ?? '';
   const budget = session?.tokenBudget;
   const usedPct = budget && budget.window > 0 ? (budget.used / budget.window) * 100 : null;
@@ -36,7 +35,6 @@ export default function Footer() {
         whiteSpace: 'nowrap',
       }}>
         {fmtTokens(tokenCount)} tok
-        {cost > 0 ? ` - ~$${cost.toFixed(4)}` : ''}
       </Caption1>
       <div style={{
         display: 'flex',

@@ -1,7 +1,7 @@
 import type { UsageRecord } from '../types';
 import { loadBuckets, rangeFrom, type TimeRange } from './queries';
 
-const CSV_HEADER = 'timestamp,session_id,turn_index,provider,model,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,total_tokens,estimated,estimated_cost_usd,pricing_version,tool_calls\r\n';
+const CSV_HEADER = 'timestamp,session_id,turn_index,provider,model,input_tokens,output_tokens,cache_read_tokens,cache_write_tokens,total_tokens,estimated,tool_calls\r\n';
 
 function escapeField(v: unknown): string {
   const s = v == null ? '' : String(v);
@@ -24,8 +24,6 @@ function recordToRow(r: UsageRecord): string {
     r.cacheWriteTokens ?? 0,
     r.totalTokens,
     r.estimated,
-    r.estimatedCostUsd,
-    r.pricingVersion ?? '',
     r.toolCallsCount,
   ].map(escapeField).join(',') + '\r\n';
 }
