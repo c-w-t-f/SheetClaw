@@ -1,6 +1,6 @@
 # Document 11 — Web Access & Scope Clarification Spec
 
-> **Status update (2026-06-11):** discovery search has moved to **LLM-provider-native search** — see [Doc 13](13-native-search-spec.md), which supersedes this document's `web_search` tool, BYOK search providers (§11.3–§11.4), and the key-based Search-toggle gating. The BYOK stack is functionally retired; its code deletion is Doc 13 OQ1. **This document remains authoritative for `fetch_url` (preview/caps/CORS classification/deny-cache/reader fallback), `request_user_choice`, context budgets, and the genericity invariant.**
+> **Status update (2026-06-11):** search is now **two-tier** — see [Doc 13](13-native-search-spec.md). LLM providers with native search (OpenRouter, Anthropic, Kimi, Qwen, GLM) use their native mechanism and ignore this document's BYOK providers; all other LLM providers continue to use this document's `web_search` tool and BYOK search stack exactly as specified here. Doc 13 governs tier resolution and toggle gating. This document remains authoritative for the BYOK tier, `fetch_url`, `request_user_choice`, context budgets, and the genericity invariant.
 
 Spec for the reattempt of the feature first tried in `5a267ba` (abandoned: its search pipeline could not work generically and was propped up by results hardcoded for a single demo scenario). Two capabilities:
 

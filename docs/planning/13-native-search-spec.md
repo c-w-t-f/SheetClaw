@@ -1,23 +1,23 @@
 # Document 13 — Native Provider Search Spec
 
-**Decision record (2026-06-11, user call):**
-1. Web search moves to **LLM-provider-native search**. The composer Search toggle is available only when the active LLM provider supports native search; toggling it ON activates that provider's native search in requests. Providers without native search get a disabled toggle — search is not supported for them.
+**Decision record (2026-06-11, user call; revised same day):**
+1. Search is **two-tier**. LLM providers with native search use their native mechanism whenever the Search toggle is ON, and are marked "native search" in Settings. Providers without native search fall back to the **BYOK search-provider stack (Doc 11)**: they are explicitly marked in Settings as lacking native search, with instructions to configure a search API key; the toggle for them behaves exactly as Doc 11 specified (available once a key is configured). Native takes precedence — if both a native capability and a BYOK key exist, native is used.
 2. After native search is confirmed working, the **OpenClaw bridge effort (Doc 12) is sunset** and its partial implementation removed (§13.7).
-3. **TBD:** whether to delete the BYOK search-provider stack (Doc 11 §11.3–11.4 providers) or keep it dormant (§13.8 OQ1). Note: under decision 1 it is *functionally* retired immediately — the toggle no longer consults it; the open question is only code/docs deletion.
+3. ~~TBD: BYOK stack deletion~~ — **resolved by decision 1: the BYOK stack is retained** as the search tier for non-native providers. Nothing is deleted.
 
-Doc 11 remains authoritative for everything that is **not** discovery search: `fetch_url` (preview/caps/CORS classification/deny-cache/reader fallback), `request_user_choice`, context budgets, and the genericity invariant.
+Doc 11 remains authoritative for the BYOK search tier and for everything that is not discovery search: `fetch_url` (preview/caps/CORS classification/deny-cache/reader fallback), `request_user_choice`, context budgets, and the genericity invariant. This document governs the native tier and which tier is active.
 
 ## 13.1 Goals and non-goals
 
 **Goals**
-- G1. Search executes server-side at the user's LLM provider, on the key they already configured — no second signup, no extra egress party, simpler privacy story.
-- G2. The Search toggle remains the single gate for all external-data egress (native search activation + `fetch_url` exposure).
-- G3. Each provider mechanism is verified for **coexistence with client function tools** before being enabled — SheetClaw's agent loop is function calls; a native search that breaks tool calling disqualifies the provider.
+- G1. Where the user's LLM provider supports it, search executes server-side on the key they already configured — no second signup, no extra egress party, simpler privacy story. Everyone else keeps the Doc 11 BYOK path.
+- G2. The Search toggle remains the single gate for all external-data egress (native mutation or BYOK `web_search`, plus `fetch_url` exposure).
+- G3. Each native mechanism is verified for **coexistence with client function tools** before being enabled — SheetClaw's agent loop is function calls; a native search that breaks tool calling disqualifies the provider (it falls back to the BYOK tier).
 
 **Non-goals (v1)**
-- No BYOK search fallback for non-native providers (decision 1).
 - No citation/annotation UI; adapters must *tolerate* citation payloads in streams without breaking, nothing more (§13.8 OQ3).
-- No OpenAI/Groq/Mistral native search (§13.2 — deferred, their mechanisms conflict with SheetClaw's model-choice design).
+- No OpenAI/Groq/Mistral native search (§13.2 — deferred, their mechanisms conflict with SheetClaw's model-choice design; they use the BYOK tier meanwhile).
+- No mixing tiers in one session: when native is active, the client `web_search` tool is not exposed.
 
 ## 13.2 Provider capability matrix
 
@@ -33,7 +33,7 @@ Doc 11 remains authoritative for everything that is **not** discovery search: `f
 
 **Deferred** (mechanism fights the design; revisit on demand): `openai` (needs Responses API migration or forced `-search-preview` models), `groq` (built-in tools only on `groq/compound` models — overrides user model choice), `mistral` (websearch lives in the separate Agents API).
 
-**Unsupported** (no native path; Search toggle disabled): `ollama` (local chat has none — ollama.com's hosted search API is a BYOK-style service, excluded by decision 1), `deepseek`, `together`, `llama`.
+**BYOK tier** (no usable native path; Doc 11 search stack applies, Settings marks them as lacking native search): `ollama` (local chat has none — though ollama.com's hosted search API is a natural *sixth BYOK adapter* candidate for exactly this segment, see OQ4), `deepseek`, `together`, `llama`, plus the deferred three above.
 
 ## 13.3 Architecture
 
@@ -64,11 +64,15 @@ This registry is the single source of truth for toggle availability, request mut
 
 Each adapter must tolerate the provider's search artifacts without crashing or corrupting tool-call accumulation: unknown content block types (Anthropic `server_tool_use`, `web_search_tool_result`), `annotations`/`url_citation` fields (OpenRouter/GLM), and billing/usage extensions. Unknown block types are skipped; their text content is not injected into the transcript in v1.
 
-### Gating (replaces Doc 11 §11.4 tool-exposure rules for search)
+### Gating (two-tier; extends Doc 11 §11.4)
 
-- Toggle **available** ⇔ `NATIVE_SEARCH[activeProvider]` exists *and* (`supportsModel` absent or true for the configured model).
-- Toggle **ON** ⇒ request mutation active **and** `fetch_url` exposed. Toggle OFF or unavailable ⇒ neither.
-- The legacy `web_search` client tool is **never exposed** (retired from the tool list; code fate per OQ1).
+Tier resolution per run: `tier = native` if `NATIVE_SEARCH[activeProvider]` exists and (`supportsModel` absent or true for the configured model); else `tier = byok`.
+
+- **Toggle available** ⇔ tier is native, **or** tier is byok and a Doc 11 search provider is configured and ready.
+- **Toggle ON, native tier** ⇒ request mutation active; client `web_search` tool **not** exposed; `fetch_url` exposed.
+- **Toggle ON, byok tier** ⇒ exactly Doc 11 behavior: client `web_search` + `fetch_url` exposed, no native mutation.
+- **Toggle OFF or unavailable** ⇒ no mutation, no web tools.
+- Native precedence: a configured BYOK key is ignored while the active provider is native-capable.
 - `request_user_choice` is unaffected (not egress).
 
 ### Cost
@@ -77,11 +81,12 @@ Native searches bill to the user's LLM key and are not itemized by SheetClaw's u
 
 ## 13.4 UI
 
-- **Composer toggle**, three states (pattern from Doc 11 §11.7, new copy):
+- **Composer toggle**, three states (pattern from Doc 11 §11.7):
   - *available/off* and *on* — unchanged.
-  - *unavailable* — soft-disabled; clicking shows: "Web search isn't supported with `<provider label>`. Switch to OpenRouter, Anthropic, Kimi, Qwen, or GLM in Settings to use search." with an Open Settings action. (For Qwen with an unsupported model, the hint names the model restriction instead.)
-- **Settings → Search tab, v1 contents:** native-search status line for the active provider (supported/unsupported + cost note), the reader-fallback checkbox (Doc 11, unchanged — it serves `fetch_url`), and nothing else. The BYOK provider/key section is hidden (OQ1); the OpenClaw diagnostics section is removed at sunset (§13.7).
-- `webSearchEnabled` session-state semantics unchanged; switching the active provider to a non-native one resets it to OFF.
+  - *unavailable* (byok tier, no key configured) — soft-disabled; clicking shows: "`<Provider label>` has no native web search. Configure a search API key in Settings → Search to enable search." with an Open Settings action. (For Qwen with a model outside the native restriction, the hint names the model constraint and offers both options.)
+- **Settings → Search tab:** a status line for the active provider at the top — "✓ `<Provider>` has native web search; searches run on your provider key. `<cost note>`" or "✗ `<Provider>` has no native web search — configure a search provider below to enable search." Below it: the Doc 11 BYOK provider/key section (unchanged, now explicitly serving non-native providers) and the reader-fallback checkbox. When the active provider is native, the BYOK section remains visible but is annotated "not used while `<Provider>` is active (native search takes precedence)". The OpenClaw diagnostics section is removed at sunset (§13.7).
+- **Provider forms** (Ollama/OpenRouter/Other API tabs): a one-line caption per provider — "Native web search: yes" / "Native web search: no — uses your search API key (Search tab)".
+- `webSearchEnabled` session-state semantics unchanged; switching the active provider re-resolves the tier, and switching to a provider whose tier is unavailable resets the toggle to OFF.
 
 ## 13.5 Phase 0 — per-provider verification (gate)
 
@@ -102,15 +107,15 @@ For each v1 provider, from a sideloaded taskpane with a real key, record in Appe
 
 | # | Criterion | Type |
 |---|---|---|
-| N-1 | Active provider without native search → toggle unavailable, hint names supported providers, no search mutation in requests | unit + component |
-| N-2 | Active provider with native search + toggle ON → request contains exactly that provider's mutation; switching provider changes/removes it | unit per kind |
-| N-3 | Toggle OFF → no mutation, no `fetch_url`, even for native providers | unit |
+| N-1 | Non-native provider + no BYOK key → toggle unavailable, hint instructs configuring a search key; non-native provider + key configured → Doc 11 behavior intact (client `web_search` + `fetch_url`, no native mutation) | unit + component |
+| N-2 | Native provider + toggle ON → request contains exactly that provider's mutation; switching provider changes/removes it and re-resolves the tier | unit per kind |
+| N-3 | Toggle OFF → no mutation, no web tools, for both tiers | unit |
 | N-4 | Mutation never sent to a different provider's endpoint (e.g. `openrouter:web_search` never reaches Z.AI) | unit |
 | N-5 | Kimi passthrough: `$web_search` tool call echoed verbatim; never executed locally; other tool calls unaffected | unit (loop) |
 | N-6 | Adapters skip unknown content blocks/annotations without corrupting text or tool calls (fixture streams per provider) | unit |
-| N-7 | Legacy `web_search` absent from every request | unit |
+| N-7 | Native tier active → client `web_search` absent from the request even when a BYOK key is configured (precedence) | unit |
 | N-8 | Genericity guard still passes | static |
-| N-9 | Manual: Doc 11 AC-11 scenarios re-run using native search for discovery (per verified provider) | manual |
+| N-9 | Manual: Doc 11 AC-11 scenarios re-run twice — once on a native provider, once on a BYOK-tier provider | manual |
 
 ## 13.7 OpenClaw sunset plan (decision 2)
 
@@ -123,9 +128,10 @@ For each v1 provider, from a sideloaded taskpane with a real key, record in Appe
 
 ## 13.8 Open questions
 
-1. **OQ1 — BYOK search stack deletion (user's "to be decided").** Functionally retired by decision 1. Deleting means removing `src/web/providers/*`, `src/web/search.ts`, the Settings BYOK section, search auth-state slots, and amending Doc 11 §11.3–§11.4/§11.12 + privacy.html. Keeping it dormant costs maintenance and dead code but preserves an escape hatch if a native mechanism (notably OpenRouter's beta) breaks. Decide after Phase 0 results are in.
-2. **OQ2 — deferred providers** (OpenAI/Groq/Mistral): revisit only on user demand.
+1. ~~OQ1 — BYOK search stack deletion~~ — **resolved 2026-06-11: retained** as the search tier for non-native providers (decision 1, revised).
+2. **OQ2 — deferred providers** (OpenAI/Groq/Mistral): they use the BYOK tier; native support revisited only on user demand.
 3. **OQ3 — citations:** native search returns citations we currently drop. Surface them later as transcript metadata?
+4. **OQ4 — Ollama hosted search as a sixth BYOK adapter** (`ollama.com/api/web_search` + `web_fetch`, free account key): the natural search path for the default-provider segment, and its `web_fetch` endpoint is a candidate reader-fallback alternative to jina (Doc 11 OQ2). Needs the standard browser-side CORS verification.
 
 ## Appendix A — Phase 0 results
 
