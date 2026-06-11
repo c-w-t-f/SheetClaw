@@ -22,6 +22,12 @@ import { createAdapter } from '../../adapters/index';
 import type { AuthState, ProviderConfig, ProviderKey } from '../../types';
 import { getAuthCredential } from '../../auth/credentials';
 import { signInWithOpenRouter } from '../../auth/oauthFlow';
+import {
+  getByokSectionNote,
+  getProviderNativeSearchCaption,
+  getSearchSettingsStatusText,
+  resolveSearchTier,
+} from '../../adapters/native-search';
 import { getSearchProvider, SEARCH_PROVIDERS, type SearchProviderId, type WebAccessProvider } from '../../web/providers';
 
 type ApiKeyProvider = Exclude<ProviderKey, 'ollama' | 'generic'>;
@@ -212,6 +218,7 @@ export default function SettingsPanel({ initialTab }: { initialTab?: SettingsTab
               baseUrl={appConfig.webAccess.baseUrl ?? ''}
               engineId={appConfig.webAccess.engineId ?? ''}
               readerFallback={appConfig.webAccess.readerFallback}
+              activeProvider={providers[appConfig.activeProvider]}
               searchAuthStates={searchAuthStates}
               onSaveConfig={(patch) => setAppConfig({ webAccess: { ...appConfig.webAccess, ...patch } })}
               onSaveKey={saveSearchApiKey}
@@ -619,6 +626,7 @@ function SearchSettingsForm({
   baseUrl,
   engineId,
   readerFallback,
+  activeProvider,
   searchAuthStates,
   onSaveConfig,
   onSaveKey,
@@ -628,6 +636,7 @@ function SearchSettingsForm({
   baseUrl: string;
   engineId: string;
   readerFallback: boolean;
+  activeProvider: ProviderConfig;
   searchAuthStates: Record<SearchProviderId, AuthState>;
   onSaveConfig: (patch: { provider?: WebAccessProvider; baseUrl?: string; engineId?: string; readerFallback?: boolean }) => void;
   onSaveKey: (provider: SearchProviderId, key: string) => void;
@@ -636,6 +645,10 @@ function SearchSettingsForm({
   const selectedProvider = provider === 'none' ? 'tavily' : provider;
   const adapter = getSearchProvider(selectedProvider);
   const auth = searchAuthStates[selectedProvider];
+  const activeSearchTier = resolveSearchTier(activeProvider.provider, activeProvider.model);
+  const activeProviderLabel = activeProvider.label || activeProvider.provider;
+  const statusText = getSearchSettingsStatusText(activeProviderLabel, activeSearchTier);
+  const byokNote = getByokSectionNote(activeProviderLabel, activeSearchTier);
   const [apiKey, setApiKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [localBaseUrl, setLocalBaseUrl] = useState(baseUrl);
@@ -682,6 +695,24 @@ function SearchSettingsForm({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <MessageBar intent={activeSearchTier.tier === 'native' ? 'success' : 'info'}>
+        <MessageBarBody>
+          <Caption1>{statusText}</Caption1>
+        </MessageBarBody>
+      </MessageBar>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Label size="small">BYOK search provider</Label>
+        <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>
+          Used for providers without native web search.
+        </Caption1>
+        {byokNote && (
+          <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>
+            {byokNote}
+          </Caption1>
+        )}
+      </div>
+
       <Field label="Provider">
         <Select
           value={provider}
@@ -922,6 +953,10 @@ function ProviderForm({
           {signupLink.label}
         </a>
       )}
+
+      <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>
+        {getProviderNativeSearchCaption(providerKey, model)}
+      </Caption1>
 
       <Field label="Base URL">
         <Input
