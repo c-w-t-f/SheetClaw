@@ -18,6 +18,7 @@ import {
   handleGetSelection,
 } from '../tools/range';
 import { handleListWorkbooks, handleGetActiveWorkbook } from '../tools/workbook_tools';
+import { COPY_RANGE_FORMAT, handleCopyRangeFormat } from '../tools/write';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -177,6 +178,113 @@ describe('read_range handler', () => {
 });
 
 // ── list_sheets ────────────────────────────────────────────────────────────
+
+describe('copy_range_format handler', () => {
+  beforeEach(() => {
+    (globalThis as unknown as Record<string, unknown>).Excel = {
+      RangeCopyType: { formats: 'Formats' },
+    };
+  });
+
+  it('copies formats and column width from source to target', async () => {
+    let copiedFrom: unknown;
+    let copiedType: unknown;
+    const source = {
+      address: 'Sheet1!F6:F16',
+      rowCount: 11,
+      columnCount: 1,
+      format: { columnWidth: 12, load: () => {} },
+      load: () => {},
+    };
+    const target = {
+      address: 'Sheet1!G6:G16',
+      rowCount: 11,
+      columnCount: 1,
+      format: { columnWidth: 8, load: () => {} },
+      load: () => {},
+      copyFrom: (src: unknown, type: unknown) => {
+        copiedFrom = src;
+        copiedType = type;
+      },
+    };
+    const ws = {
+      getRange: (address: string) => address === 'F6:F16' ? source : target,
+    };
+    const ctx = {
+      workbook: { worksheets: { getItem: () => ws } },
+      sync: async () => {},
+    };
+
+    const registry = makeRegistry();
+    const executor = new ToolExecutor(registry, makeRunner(ctx));
+    executor.register(COPY_RANGE_FORMAT, handleCopyRangeFormat);
+
+    const r = await executor.execute(
+      makeCall('copy_range_format', {
+        workbook_id: HOST_ID,
+        sheet: 'Sheet1',
+        source_address: 'F6:F16',
+        target_address: 'G6:G16',
+      }),
+      SCOPE
+    );
+
+    expect(r.ok).toBe(true);
+    expect(copiedFrom).toBe(source);
+    expect(copiedType).toBe('Formats');
+    expect(target.format.columnWidth).toBe(12);
+    expect(r.data).toMatchObject({
+      sheet: 'Sheet1',
+      source: 'Sheet1!F6:F16',
+      target: 'Sheet1!G6:G16',
+      copied: 'formats',
+      copiedColumnWidth: true,
+    });
+  });
+
+  it('rejects mismatched source and target shapes', async () => {
+    const source = {
+      address: 'Sheet1!F6:F16',
+      rowCount: 11,
+      columnCount: 1,
+      format: { columnWidth: 12, load: () => {} },
+      load: () => {},
+    };
+    const target = {
+      address: 'Sheet1!G6:G20',
+      rowCount: 15,
+      columnCount: 1,
+      format: { columnWidth: 8, load: () => {} },
+      load: () => {},
+      copyFrom: () => {},
+    };
+    const ws = {
+      getRange: (address: string) => address === 'F6:F16' ? source : target,
+    };
+    const ctx = {
+      workbook: { worksheets: { getItem: () => ws } },
+      sync: async () => {},
+    };
+
+    const registry = makeRegistry();
+    const executor = new ToolExecutor(registry, makeRunner(ctx));
+    executor.register(COPY_RANGE_FORMAT, handleCopyRangeFormat);
+
+    const r = await executor.execute(
+      makeCall('copy_range_format', {
+        workbook_id: HOST_ID,
+        sheet: 'Sheet1',
+        source_address: 'F6:F16',
+        target_address: 'G6:G20',
+      }),
+      SCOPE
+    );
+
+    expect(r.ok).toBe(false);
+    expect(r.error?.code).toBe('ValidationError');
+    expect(r.error?.message).toMatch(/Dimension mismatch/);
+  });
+});
 
 describe('list_sheets handler', () => {
   it('returns sheet list with name, position, visible', async () => {

@@ -521,15 +521,17 @@ export class AgentLoop {
     // Mutating: capture → diff → confirm → apply/cancel
     const sheet = call.arguments.sheet as string | undefined;
     const address = call.arguments.address as string | undefined;
+    const targetAddress = call.arguments.target_address as string | undefined;
+    const snapshotAddress = address ?? targetAddress;
 
     let snapshotId: string | undefined;
     try {
-      if (sheet && address) {
-        const snap = await this.snapshots.captureRange(session.id, session.scope.workbookId, sheet, address, this.runner);
+      if (sheet && snapshotAddress) {
+        const snap = await this.snapshots.captureRange(session.id, session.scope.workbookId, sheet, snapshotAddress, this.runner);
         snapshotId = snap.id;
 
         const proposed = call.arguments.values as unknown[][] | undefined;
-        const diff = proposed ? computeRangeDiff(address, snap.before.values ?? [], proposed) : [];
+        const diff = proposed ? computeRangeDiff(snapshotAddress, snap.before.values ?? [], proposed) : [];
         const wb = this.registry.getManifest().workbooks[0];
 
         useStore.getState().updateSession({

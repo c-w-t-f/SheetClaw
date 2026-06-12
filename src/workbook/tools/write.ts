@@ -37,7 +37,24 @@ export const CLEAR_RANGE: ToolSpec = {
   mutating: true,
 };
 
-export const WRITE_SPECS: ToolSpec[] = [WRITE_RANGE, CLEAR_RANGE];
+export const COPY_RANGE_FORMAT: ToolSpec = {
+  name: 'copy_range_format',
+  description: 'Copy cell formatting from one range to another range on the same worksheet. Use this to match an existing table/column style, including number format, fill, font, borders, alignment, and optionally column width. Requires user confirmation before applying.',
+  parameters: {
+    type: 'object',
+    properties: {
+      workbook_id: { type: 'string', description: 'Workbook ID' },
+      sheet: { type: 'string', description: 'Worksheet name' },
+      source_address: { type: 'string', description: 'A1 range address to copy formatting from, e.g. "F6:F16"' },
+      target_address: { type: 'string', description: 'A1 range address to apply formatting to, e.g. "G6:G16". Use the same shape as source_address when possible.' },
+      copy_column_width: { type: 'boolean', description: 'Also copy the source column width to the target column(s). Default: true' },
+    },
+    required: ['workbook_id', 'sheet', 'source_address', 'target_address'],
+  },
+  mutating: true,
+};
+
+export const WRITE_SPECS: ToolSpec[] = [WRITE_RANGE, CLEAR_RANGE, COPY_RANGE_FORMAT];
 
 // ── Handlers ───────────────────────────────────────────────────────────────
 // These run after the snapshot is captured and the user has confirmed.
@@ -92,4 +109,40 @@ export const handleClearRange: ToolHandler = async (args, ctx) => {
   await ctx.sync();
 
   return { address, cleared: applyTo };
+};
+
+export const handleCopyRangeFormat: ToolHandler = async (args, ctx) => {
+  const sheet = args.sheet as string;
+  const sourceAddress = args.source_address as string;
+  const targetAddress = args.target_address as string;
+  const copyColumnWidth = (args.copy_column_width as boolean | undefined) ?? true;
+
+  const ws = ctx.workbook.worksheets.getItem(sheet);
+  const source = ws.getRange(sourceAddress);
+  const target = ws.getRange(targetAddress);
+  source.load('address,rowCount,columnCount');
+  target.load('address,rowCount,columnCount');
+  if (copyColumnWidth) source.format.load('columnWidth');
+  await ctx.sync();
+
+  if (source.rowCount !== target.rowCount || source.columnCount !== target.columnCount) {
+    throw new ToolValidationError(
+      `Dimension mismatch: source ${sourceAddress} is ${source.rowCount}x${source.columnCount} ` +
+      `but target ${targetAddress} is ${target.rowCount}x${target.columnCount}. Use matching range shapes.`
+    );
+  }
+
+  target.copyFrom(source, Excel.RangeCopyType.formats);
+  if (copyColumnWidth) {
+    target.format.columnWidth = source.format.columnWidth;
+  }
+  await ctx.sync();
+
+  return {
+    sheet,
+    source: source.address,
+    target: target.address,
+    copied: 'formats',
+    copiedColumnWidth: copyColumnWidth,
+  };
 };
