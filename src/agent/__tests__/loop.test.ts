@@ -184,6 +184,44 @@ describe('AgentLoop — text-only run', () => {
     expect(totals?.outputTokens).toBe(5);
   });
 
+  it('adds follow-up prompts to the same session instead of replacing the chat', async () => {
+    const requests: LLMRequest[] = [];
+    let call = 0;
+    const client: LLMClient = {
+      chat: (req: LLMRequest) => {
+        requests.push(req);
+        return call++ === 0 ? textStream('First answer') : textStream('Second answer');
+      },
+      listModels: async () => [],
+      capabilities: () => ({ supportsTools: true, supportsStreaming: true, supportsOAuth: false, nativeUsage: false, toolFormat: 'openai' as const }),
+    };
+    const loop = new AgentLoop(
+      makeRegistry(),
+      makeExecutor() as unknown as ToolExecutor,
+      new SnapshotManager(),
+      noop
+    );
+
+    await loop.start('First question', SCOPE, client, CFG);
+    const sessionId = useStore.getState().currentSession?.id;
+    await loop.followUp('Follow-up question', SCOPE, client, CFG);
+
+    const state = useStore.getState();
+    expect(state.currentSession?.id).toBe(sessionId);
+    expect(state.messages.filter(m => m.role === 'user').map(m => (m as { text: string }).text)).toEqual([
+      'First question',
+      'Follow-up question',
+    ]);
+    expect(state.messages.filter(m => m.role === 'assistant').map(m => (m as { text: string }).text)).toEqual([
+      'First answer',
+      'Second answer',
+    ]);
+    expect(requests[1].messages.filter(m => m.role === 'user').map(m => m.content)).toEqual([
+      expect.stringContaining('First question'),
+      'Follow-up question',
+    ]);
+  });
+
   it('isRunning returns false after completion', async () => {
     const loop = new AgentLoop(
       makeRegistry(),

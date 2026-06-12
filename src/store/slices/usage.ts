@@ -37,6 +37,7 @@ export interface UsageSlice {
   sessionTotals: SessionTotals | null;
   recordUsage(record: UsageRecord): void;
   resetSessionTotals(sessionId: string): void;
+  clearSessionTotals(): void;
 }
 
 export const createUsageSlice: StateCreator<UsageSlice> = set => ({
@@ -79,5 +80,9 @@ export const createUsageSlice: StateCreator<UsageSlice> = set => ({
 
   resetSessionTotals(sessionId) {
     set({ sessionTotals: { sessionId, inputTokens: 0, outputTokens: 0, costUsd: 0, turns: 0 } });
+  },
+
+  clearSessionTotals() {
+    set({ sessionTotals: null });
   },
 });

@@ -108,6 +108,8 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
   const providers = useStore(s => s.providers);
   const appConfig = useStore(s => s.appConfig);
   const setAppConfig = useStore(s => s.setAppConfig);
+  const setSession = useStore(s => s.setSession);
+  const clearSessionTotals = useStore(s => s.clearSessionTotals);
   const webSearchEnabled = useStore(s => s.webSearchEnabled);
   const setWebSearchEnabled = useStore(s => s.setWebSearchEnabled);
   const authStates = useStore(s => s.authStates);
@@ -163,13 +165,31 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
     const scope = { workbookId: getTaskpaneWorkbookLayer().registry.getActiveId() ?? 'host' };
 
     try {
-      await getTaskpaneAgentLoop().start(text, scope, client, cfg);
+      if (session) {
+        await getTaskpaneAgentLoop().followUp(text, scope, client, cfg);
+      } else {
+        await getTaskpaneAgentLoop().start(text, scope, client, cfg);
+      }
     } catch {
-      // Errors are captured inside loop.start and written to store.
+      // Errors are captured inside the loop and written to store.
     }
   }
 
   function stop() { getTaskpaneAgentLoop().stop(); }
+  function newChat() {
+    getTaskpaneAgentLoop().stop();
+    setSession(null);
+    clearSessionTotals();
+    setInput('');
+    setSearchHint(null);
+    window.setTimeout(() => {
+      const ref = textareaRef.current;
+      const el = ref?.tagName === 'TEXTAREA'
+        ? (ref as HTMLTextAreaElement)
+        : (ref as HTMLSpanElement | null)?.querySelector('textarea');
+      el?.focus();
+    }, 0);
+  }
   function applyConfirm() { getTaskpaneAgentLoop().resolveConfirmation('apply'); }
   function cancelConfirm() { getTaskpaneAgentLoop().resolveConfirmation('cancel'); }
   function resolveChoice(selection: ChoiceSelection) { getTaskpaneAgentLoop().resolveChoice(selection); }
@@ -334,6 +354,16 @@ export default function ChatPanel({ onOpenSettings }: { onOpenSettings?: (target
           gap: 8,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+            <Button
+              size="small"
+              appearance="secondary"
+              style={composerActionStyle}
+              onClick={newChat}
+              aria-label="New chat"
+              title="New chat"
+            >
+              <PillIcon>📝</PillIcon>
+            </Button>
             <Button
               size="small"
               appearance="secondary"

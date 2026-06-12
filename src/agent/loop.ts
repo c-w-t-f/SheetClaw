@@ -25,6 +25,14 @@ import { ToolValidationError } from '../workbook/executor';
 import { resolveSearchToggle } from '../adapters/native-search';
 
 const MAX_ITERATIONS = 25;
+const ACTIVE_STATUSES = new Set<AgentSession['status']>([
+  'building',
+  'calling_llm',
+  'parsing',
+  'awaiting_confirmation',
+  'awaiting_choice',
+  'executing_tool',
+]);
 export type LoopRunner = <T>(fn: (ctx: Excel.RequestContext) => Promise<T>) => Promise<T>;
 export interface ChoiceSelection {
   ids: string[];
@@ -96,6 +104,73 @@ export class AgentLoop {
 
     const ctxBuilder = new ContextBuilder(this.registry);
 
+    try {
+      await this.loop(session, client, cfg, ctxBuilder, ac.signal);
+    } catch (e) {
+      if (ac.signal.aborted) {
+        useStore.getState().updateSession({ status: 'stopped' });
+      } else {
+        const message = e instanceof Error ? e.message : String(e);
+        useStore.getState().updateSession({ status: 'error', lastError: { code: 'LoopError', message } });
+        this.append(session.id, msg<SystemNoticeMessage>(session.id, { role: 'system_notice', level: 'error', text: `Run failed: ${message}` }));
+      }
+    } finally {
+      this.abortController = null;
+    }
+  }
+
+  async followUp(
+    instruction: string,
+    scope: SessionScope,
+    client: LLMClient,
+    cfg: ProviderConfig
+  ): Promise<void> {
+    const current = useStore.getState().currentSession;
+    if (!current) {
+      await this.start(instruction, scope, client, cfg);
+      return;
+    }
+    if (ACTIVE_STATUSES.has(current.status)) return;
+
+    const ac = new AbortController();
+    this.abortController = ac;
+    const store = useStore.getState();
+    const webProvider = store.appConfig.webAccess.provider;
+    const byokReady = webProvider !== 'none' && store.isSearchProviderReady(webProvider);
+    const searchToggle = resolveSearchToggle({ provider: cfg.provider, model: cfg.model, byokReady });
+    const session: AgentSession = {
+      ...current,
+      scope,
+      status: 'building',
+      iteration: 0,
+      maxIterations: MAX_ITERATIONS,
+      provider: cfg.provider,
+      model: cfg.model,
+      pendingChange: undefined,
+      pendingChoice: undefined,
+      stopReason: undefined,
+      lastError: undefined,
+      tokenBudget: { used: 0, window: cfg.contextLimits.maxContextTokens },
+      webSearchEnabled: store.webSearchEnabled && searchToggle.available,
+    };
+
+    store.updateSession({
+      scope: session.scope,
+      status: session.status,
+      iteration: session.iteration,
+      maxIterations: session.maxIterations,
+      provider: session.provider,
+      model: session.model,
+      pendingChange: undefined,
+      pendingChoice: undefined,
+      stopReason: undefined,
+      lastError: undefined,
+      tokenBudget: session.tokenBudget,
+      webSearchEnabled: session.webSearchEnabled,
+    });
+    this.append(session.id, msg<UserMessage>(session.id, { role: 'user', text: instruction }));
+
+    const ctxBuilder = new ContextBuilder(this.registry);
     try {
       await this.loop(session, client, cfg, ctxBuilder, ac.signal);
     } catch (e) {
