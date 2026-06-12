@@ -53,7 +53,7 @@ export interface AuthState {
   expiresAt?: string;
   userId?: string;
   error?: string;
-  /** Raw key - Phase 8 will move this to OS vault. Personal-use only. */
+  /** Raw key in memory only; persisted AES-GCM-sealed via auth/secureStore. */
   _key?: string;
 }
 

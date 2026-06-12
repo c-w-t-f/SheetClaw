@@ -81,7 +81,7 @@ Mutating operations require confirmation before they are applied to the workbook
 - Other API: API-key based providers including OpenAI, Anthropic, DeepSeek, Groq, Mistral, Together AI, Kimi, GLM, Qwen, and Llama.
 - Generic OpenAI-compatible endpoints can be configured by changing the base URL and model.
 
-Credentials are stored locally by the add-in. Treat this as a personal development tool unless you harden credential storage for broader use.
+Credentials are stored locally by the add-in, encrypted at rest with AES-GCM via Web Crypto; the encryption key is a non-extractable `CryptoKey` kept in IndexedDB. This protects keys from storage dumps and disk inspection, but a same-origin script compromise could still use the key, so treat this as a personal development tool unless you harden credential storage further (for example an OS credential vault) for broader use.
 
 ## Available Scripts
 

@@ -2,6 +2,7 @@ import type { StateCreator } from 'zustand';
 import type { AuthState, ProviderKey, SearchProviderId } from '../../types';
 import { SEARCH_PROVIDERS as SEARCH_PROVIDER_REGISTRY, SEARCH_PROVIDER_IDS } from '../../web/providers';
 import { storage } from '../storage';
+import { encryptSecret, decryptSecret, isEncryptedSecret } from '../../auth/secureStore';
 
 const AUTH_KEY = (p: ProviderKey) => `xl.auth.${p}`;
 const SEARCH_AUTH_KEY = (p: SearchProviderId) => `xl.auth.search:${p}`;
@@ -9,6 +10,72 @@ const SEARCH_AUTH_KEY = (p: SearchProviderId) => `xl.auth.search:${p}`;
 function maskKey(key: string): string {
   if (key.length <= 8) return '••••••••';
   return key.slice(0, 4) + '••••' + key.slice(-4);
+}
+
+// ── Encryption at rest ─────────────────────────────────────────────────────
+// In-memory AuthState keeps plaintext secrets (adapters need them per call);
+// the persisted copy carries them AES-GCM-sealed via auth/secureStore.
+
+const SENSITIVE_FIELDS = ['_key', 'accessToken', 'refreshToken'] as const;
+
+async function sealAuthState(state: AuthState): Promise<AuthState> {
+  const sealed = { ...state };
+  for (const field of SENSITIVE_FIELDS) {
+    const value = sealed[field];
+    if (value) sealed[field] = await encryptSecret(value);
+  }
+  return sealed;
+}
+
+async function openAuthState(saved: AuthState): Promise<{ state: AuthState; migrated: boolean }> {
+  const opened = { ...saved };
+  let migrated = false;
+  for (const field of SENSITIVE_FIELDS) {
+    const value = opened[field];
+    if (!value) continue;
+    if (!isEncryptedSecret(value)) migrated = true;
+    opened[field] = await decryptSecret(value);
+  }
+  return { state: opened, migrated };
+}
+
+// All persistence goes through one queue so writes land in call order —
+// otherwise a clear could be overtaken by a still-encrypting earlier save.
+let pendingWrites: Promise<void> = Promise.resolve();
+
+function persistSealed(storageKey: string, state: AuthState): void {
+  pendingWrites = pendingWrites
+    .then(async () => {
+      storage.put(storageKey, await sealAuthState(state));
+    })
+    .catch(() => {
+      // Keep the queue alive; a failed write degrades to session-only auth.
+    });
+}
+
+/** Resolves once every queued credential write has been flushed to storage. */
+export function flushAuthPersistence(): Promise<void> {
+  return pendingWrites;
+}
+
+async function openSavedAuth(
+  storageKey: string,
+  saved: AuthState,
+  providerLabel: string
+): Promise<AuthState> {
+  try {
+    const { state, migrated } = await openAuthState(saved);
+    // Legacy plaintext entry: re-persist it sealed.
+    if (migrated) persistSealed(storageKey, state);
+    return state;
+  } catch {
+    // Key lost or ciphertext tampered — drop the secret and ask again.
+    return {
+      provider: providerLabel,
+      state: 'unauthenticated',
+      error: 'Saved credential could not be unlocked. Enter it again in Settings.',
+    };
+  }
 }
 
 export interface AuthSlice {
@@ -27,7 +94,7 @@ export interface AuthSlice {
   clearApiKey(provider: ProviderKey): void;
   saveSearchApiKey(provider: SearchProviderId, key: string): void;
   clearSearchApiKey(provider: SearchProviderId): void;
-  loadAuthFromStorage(): void;
+  loadAuthFromStorage(): Promise<void>;
   isProviderReady(provider: ProviderKey): boolean;
   isSearchProviderReady(provider: SearchProviderId): boolean;
 }
@@ -80,7 +147,7 @@ export const createAuthSlice: StateCreator<AuthSlice> = (set, get) => ({
       apiKeyMasked: trimmed ? maskKey(trimmed) : undefined,
       _key: trimmed || undefined,
     };
-    storage.put(AUTH_KEY(provider), next);
+    persistSealed(AUTH_KEY(provider), next);
     set(state => ({ authStates: { ...state.authStates, [provider]: next } }));
   },
 
@@ -99,13 +166,13 @@ export const createAuthSlice: StateCreator<AuthSlice> = (set, get) => ({
       userId: credential.userId,
       _key: trimmed || undefined,
     };
-    storage.put(AUTH_KEY(provider), next);
+    persistSealed(AUTH_KEY(provider), next);
     set(state => ({ authStates: { ...state.authStates, [provider]: next } }));
   },
 
   clearApiKey(provider) {
     const next: AuthState = { provider, state: 'unauthenticated' };
-    storage.put(AUTH_KEY(provider), next);
+    persistSealed(AUTH_KEY(provider), next);
     set(state => ({ authStates: { ...state.authStates, [provider]: next } }));
   },
 
@@ -118,26 +185,26 @@ export const createAuthSlice: StateCreator<AuthSlice> = (set, get) => ({
       apiKeyMasked: trimmed ? maskKey(trimmed) : undefined,
       _key: trimmed || undefined,
     };
-    storage.put(SEARCH_AUTH_KEY(provider), next);
+    persistSealed(SEARCH_AUTH_KEY(provider), next);
     set(state => ({ searchAuthStates: { ...state.searchAuthStates, [provider]: next } }));
   },
 
   clearSearchApiKey(provider) {
     const next: AuthState = { provider: `search:${provider}`, state: 'unauthenticated' };
-    storage.put(SEARCH_AUTH_KEY(provider), next);
+    persistSealed(SEARCH_AUTH_KEY(provider), next);
     set(state => ({ searchAuthStates: { ...state.searchAuthStates, [provider]: next } }));
   },
 
-  loadAuthFromStorage() {
+  async loadAuthFromStorage() {
     const loaded: Partial<Record<ProviderKey, AuthState>> = {};
     for (const p of ALL_PROVIDERS) {
       const saved = storage.get<AuthState>(AUTH_KEY(p));
-      if (saved) loaded[p] = saved;
+      if (saved) loaded[p] = await openSavedAuth(AUTH_KEY(p), saved, p);
     }
     const loadedSearch: Partial<Record<SearchProviderId, AuthState>> = {};
     for (const p of SEARCH_PROVIDERS) {
       const saved = storage.get<AuthState>(SEARCH_AUTH_KEY(p));
-      if (saved) loadedSearch[p] = saved;
+      if (saved) loadedSearch[p] = await openSavedAuth(SEARCH_AUTH_KEY(p), saved, `search:${p}`);
     }
     if (Object.keys(loaded).length > 0) {
       set(state => ({
