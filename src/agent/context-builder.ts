@@ -14,7 +14,10 @@ import { getNativeSearchCapability } from '../adapters/native-search';
 // ── Token estimation ───────────────────────────────────────────────────────
 // Rough character-to-token ratio; good enough for budget decisions.
 const CHARS_PER_TOKEN = 4;
-const MAX_TOOL_RESULT_CHARS = 2000;
+// Sized above fetch_url's 20k-char text cap (plus JSON-encoding overhead) so a
+// full-mode fetch reaches the model intact; compact() degrades older results
+// when the context budget is under pressure.
+const MAX_TOOL_RESULT_CHARS = 24_000;
 
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN);
@@ -75,22 +78,32 @@ function compact(
   const available = budget - fixedTokens - maxOutput;
   if (available <= 0) return history.slice(-2); // emergency floor
 
-  const histStr = JSON.stringify(history);
-  if (estimateTokens(histStr) <= available) return history;
+  const fits = (msgs: NormalizedMessage[]) => estimateTokens(JSON.stringify(msgs)) <= available;
+  if (fits(history)) return history;
 
-  // Step 1: truncate tool result payloads further (to 200 chars)
-  const step1 = history.map(m => {
-    if (m.role === 'tool' && m.content.length > 200) {
-      return { ...m, content: m.content.slice(0, 200) + '…[truncated]' };
-    }
-    return m;
-  });
-  if (estimateTokens(JSON.stringify(step1)) <= available) return step1;
+  // Steps 1-2: degrade tool result payloads in stages. The two most recent
+  // results are kept largest — they hold the data the model is acting on now;
+  // squashing them forces a refetch and more iterations.
+  const toolIndices = history.map((m, i) => (m.role === 'tool' ? i : -1)).filter(i => i >= 0);
+  const recent = new Set(toolIndices.slice(-2));
+  const squash = (msgs: NormalizedMessage[], oldLimit: number, recentLimit: number) =>
+    msgs.map((m, i) => {
+      if (m.role !== 'tool') return m;
+      const limit = recent.has(i) ? recentLimit : oldLimit;
+      return m.content.length > limit
+        ? { ...m, content: m.content.slice(0, limit) + '…[truncated]' }
+        : m;
+    });
 
-  // Steps 2-3: drop oldest pairs, always keep first user message + last 4 messages
-  const firstUser = step1.findIndex(m => m.role === 'user');
-  const kept = firstUser >= 0 ? [step1[firstUser]] : [];
-  let tail = step1.slice(firstUser + 1);
+  let squashed = squash(history, 2000, Number.MAX_SAFE_INTEGER);
+  if (fits(squashed)) return squashed;
+  squashed = squash(squashed, 200, 2000);
+  if (fits(squashed)) return squashed;
+
+  // Step 3: drop oldest pairs, always keep first user message + last 4 messages
+  const firstUser = squashed.findIndex(m => m.role === 'user');
+  const kept = firstUser >= 0 ? [squashed[firstUser]] : [];
+  let tail = squashed.slice(firstUser + 1);
 
   while (tail.length > 4 && estimateTokens(JSON.stringify([...kept, ...tail])) > available) {
     // Drop the oldest user+assistant pair (skip tool results attached to it)

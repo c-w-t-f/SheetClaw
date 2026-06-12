@@ -87,9 +87,23 @@ describe('ContextBuilder.build', () => {
     expect(toolMsg?.content).toContain('hello');
   });
 
-  it('truncates large tool result payloads', () => {
+  it('keeps tool results up to the fetch_url cap intact', () => {
     const cb = new ContextBuilder(makeRegistry());
-    const bigData = 'x'.repeat(3000);
+    const fetchSized = 'x'.repeat(20_000);
+    const msgs: Message[] = [
+      { id: 'u1', sessionId: 's1', createdAt: '', role: 'user', text: 'Read' },
+      { id: 'a1', sessionId: 's1', createdAt: '', role: 'assistant', text: '' },
+      { id: 'tr1', sessionId: 's1', createdAt: '', role: 'tool', toolCallId: 'tc1', result: { toolCallId: 'tc1', ok: true, data: fetchSized } },
+    ];
+    const req = cb.build(SESSION, msgs, [], CFG);
+    const toolMsg = req.messages.find(m => m.role === 'tool');
+    expect(toolMsg?.content).not.toContain('truncated');
+    expect((toolMsg?.content as string).length).toBeGreaterThanOrEqual(20_000);
+  });
+
+  it('truncates oversized tool result payloads', () => {
+    const cb = new ContextBuilder(makeRegistry());
+    const bigData = 'x'.repeat(30_000);
     const msgs: Message[] = [
       { id: 'u1', sessionId: 's1', createdAt: '', role: 'user', text: 'Read' },
       { id: 'a1', sessionId: 's1', createdAt: '', role: 'assistant', text: '' },
@@ -97,8 +111,36 @@ describe('ContextBuilder.build', () => {
     ];
     const req = cb.build(SESSION, msgs, [], CFG);
     const toolMsg = req.messages.find(m => m.role === 'tool');
-    expect((toolMsg?.content as string).length).toBeLessThan(2200);
+    expect((toolMsg?.content as string).length).toBeLessThan(24_100);
     expect(toolMsg?.content).toContain('truncated');
+  });
+
+  it('compaction squashes older tool results before the most recent ones', () => {
+    const cb = new ContextBuilder(makeRegistry());
+    const tightCfg: ProviderConfig = {
+      ...CFG,
+      maxOutputTokens: 16,
+      contextLimits: { ...CFG.contextLimits, maxContextTokens: 15_600 },
+    };
+    const big = (ch: string) => ch.repeat(20_000);
+    const msgs: Message[] = [
+      { id: 'u1', sessionId: 's1', createdAt: '', role: 'user', text: 'Fetch four pages' },
+      { id: 'a1', sessionId: 's1', createdAt: '', role: 'assistant', text: '' },
+      ...(['a', 'b', 'c', 'd'] as const).map((ch, i): Message => ({
+        id: `tr${i}`, sessionId: 's1', createdAt: '', role: 'tool', toolCallId: `tc${i}`,
+        result: { toolCallId: `tc${i}`, ok: true, data: big(ch) },
+      })),
+    ];
+    const req = cb.build(SESSION, msgs, [], tightCfg);
+    const toolMsgs = req.messages.filter(m => m.role === 'tool');
+    expect(toolMsgs).toHaveLength(4);
+    // Older results squashed to ~2000 chars; the last two stay full-size.
+    expect(toolMsgs[0].content).toContain('[truncated]');
+    expect(toolMsgs[1].content).toContain('[truncated]');
+    expect((toolMsgs[0].content as string).length).toBeLessThan(2100);
+    expect((toolMsgs[1].content as string).length).toBeLessThan(2100);
+    expect((toolMsgs[2].content as string).length).toBeGreaterThan(19_000);
+    expect((toolMsgs[3].content as string).length).toBeGreaterThan(19_000);
   });
 
   it('estimateInputTokens returns a positive number', () => {

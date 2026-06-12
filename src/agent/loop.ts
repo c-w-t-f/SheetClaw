@@ -196,6 +196,14 @@ export class AgentLoop {
       ...filterToolsForRun(this.executor.getToolSpecs(), session.webSearchEnabled, searchToggle),
       REQUEST_USER_CHOICE,
     ];
+    // Read-only tools that run outside the Excel runtime (web_search, fetch_url)
+    // are safe to execute concurrently; each network call can block for seconds.
+    // request_user_choice blocks on user input, so it stays sequential.
+    const parallelizable = new Set(
+      toolSpecs
+        .filter(s => !s.mutating && s.runtime === 'none' && s.name !== REQUEST_USER_CHOICE.name)
+        .map(s => s.name)
+    );
 
     for (let iter = session.iteration; iter < session.maxIterations; iter++) {
       if (signal.aborted) return;
@@ -262,12 +270,9 @@ export class AgentLoop {
         return;
       }
 
-      // Execute tool calls sequentially
+      // Execute tool calls — consecutive network reads run concurrently
       useStore.getState().updateSession({ status: 'executing_tool' });
-      for (const call of calls) {
-        if (signal.aborted) return;
-        await this.executeCall(call, session, signal);
-      }
+      await this.executeCalls(calls, session, signal, parallelizable);
     }
 
     useStore.getState().updateSession({ status: 'done', stopReason: 'max_iterations' });
@@ -341,6 +346,36 @@ export class AgentLoop {
   }
 
   // ── Tool execution ─────────────────────────────────────────────────────
+
+  private async executeCalls(
+    calls: ToolCall[],
+    session: AgentSession,
+    signal: AbortSignal,
+    parallelizable: Set<string>
+  ): Promise<void> {
+    const scope = { workbookId: session.scope.workbookId };
+    let i = 0;
+    while (i < calls.length) {
+      if (signal.aborted) return;
+      let end = i;
+      while (end < calls.length && parallelizable.has(calls[end].name)) end++;
+      if (end - i >= 2) {
+        // Results are appended in call order so the transcript stays deterministic.
+        const batch = calls.slice(i, end);
+        const results = await Promise.all(batch.map(c => this.executor.execute(c, scope)));
+        if (signal.aborted) return;
+        for (let k = 0; k < batch.length; k++) {
+          this.append(session.id, msg<ToolResultMessage>(session.id, {
+            role: 'tool', toolCallId: batch[k].id, result: results[k],
+          }));
+        }
+        i = end;
+      } else {
+        await this.executeCall(calls[i], session, signal);
+        i++;
+      }
+    }
+  }
 
   private async executeCall(call: ToolCall, session: AgentSession, signal: AbortSignal): Promise<void> {
     const scope = { workbookId: session.scope.workbookId };

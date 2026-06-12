@@ -420,6 +420,56 @@ describe('AgentLoop — non-mutating tool call', () => {
   });
 });
 
+describe('AgentLoop — parallel network tool execution', () => {
+  it('runs consecutive read-only network calls concurrently and appends results in call order', async () => {
+    const fetchSpec: ToolSpec = {
+      name: 'fetch_url',
+      description: 'Fetch URL',
+      parameters: { type: 'object', properties: {}, required: [] },
+      mutating: false,
+      runtime: 'none',
+    };
+
+    let active = 0;
+    let maxActive = 0;
+    const executor: Partial<ToolExecutor> = {
+      getToolSpecs: () => [fetchSpec],
+      execute: async (call) => {
+        active++;
+        maxActive = Math.max(maxActive, active);
+        await new Promise(r => setTimeout(r, 25));
+        active--;
+        return { toolCallId: call.id, ok: true, data: { id: call.id } };
+      },
+    };
+
+    async function* twoCalls(): AsyncIterable<LLMStreamEvent> {
+      yield { type: 'tool-call-start', index: 0, id: 'p1', name: 'fetch_url' };
+      yield { type: 'tool-call-delta', index: 0, argumentsDelta: '{"url":"https://finance.example/"}' };
+      yield { type: 'tool-call-start', index: 1, id: 'p2', name: 'fetch_url' };
+      yield { type: 'tool-call-delta', index: 1, argumentsDelta: '{"url":"https://weather.example/"}' };
+      yield { type: 'usage', inputTokens: 20, outputTokens: 8, source: 'estimated' };
+      yield { type: 'done', finishReason: 'tool_calls' };
+    }
+
+    useStore.getState().setAppConfig({ webAccess: { provider: 'wikipedia', readerFallback: false } });
+    useStore.getState().setWebSearchEnabled(true);
+
+    const loop = new AgentLoop(
+      makeRegistry(),
+      executor as unknown as ToolExecutor,
+      new SnapshotManager(),
+      noop
+    );
+    await loop.start('Fetch two pages', SCOPE, makeTwoTurnClient(twoCalls(), textStream('Both fetched.')), CFG);
+
+    expect(useStore.getState().currentSession?.status).toBe('done');
+    expect(maxActive).toBe(2);
+    const toolMsgs = useStore.getState().messages.filter(m => m.role === 'tool') as Array<{ toolCallId: string }>;
+    expect(toolMsgs.map(m => m.toolCallId)).toEqual(['p1', 'p2']);
+  });
+});
+
 describe('AgentLoop — stop()', () => {
   it('stops a running loop and isRunning() returns false after the promise settles', async () => {
     let yieldControl!: () => void;
