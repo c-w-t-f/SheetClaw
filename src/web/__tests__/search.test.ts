@@ -3,6 +3,7 @@ import { filterToolsForRun } from '../../agent/tool-filter';
 import { resolveSearchToggle } from '../../adapters/native-search';
 import type { ToolSpec } from '../../types';
 import { createWebSearchHandler, WEB_SEARCH } from '../search';
+import { MAX_RESULT_CONTENT_CHARS } from '../providers';
 import { tavilyProvider } from '../providers/tavily';
 import { googleCseProvider } from '../providers/google-cse';
 import { jinaProvider } from '../providers/jina';
@@ -66,6 +67,57 @@ describe('Tavily adapter', () => {
     });
 
     expect(results).toEqual([]);
+  });
+
+  it('keeps raw content disabled and omits the content field by default', async () => {
+    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => jsonResponse({ results: DOMAIN_FIXTURES }));
+
+    const results = await tavilyProvider.search('public data', {
+      maxResults: 3,
+      apiKey: 'key',
+      signal: new AbortController().signal,
+      fetchImpl,
+    });
+
+    const [, init] = fetchImpl.mock.calls[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({ include_raw_content: false });
+    expect(results.every(r => r.content === undefined)).toBe(true);
+  });
+
+  it('requests text extraction and returns capped per-result content when includeContent is set', async () => {
+    const longText = 'row data '.repeat(1000); // 9000 chars, well past the cap
+    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => jsonResponse({
+      results: [
+        {
+          title: 'Quarterly filing',
+          url: 'https://finance.example/reports/q1',
+          content: 'Revenue table and notes.',
+          raw_content: longText,
+        },
+        {
+          title: 'Match schedule',
+          url: 'https://sports.example/schedule',
+          content: 'Fixtures and scores.',
+          raw_content: null,
+        },
+      ],
+    }));
+
+    const results = await tavilyProvider.search('public data', {
+      maxResults: 2,
+      apiKey: 'key',
+      includeContent: true,
+      signal: new AbortController().signal,
+      fetchImpl,
+    });
+
+    const [, init] = fetchImpl.mock.calls[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({ include_raw_content: 'text' });
+    expect(results[0].content!.startsWith(longText.slice(0, MAX_RESULT_CONTENT_CHARS))).toBe(true);
+    expect(results[0].content!.endsWith('[truncated: page continues beyond this point]')).toBe(true);
+    expect(results[0].snippet).toBe('Revenue table and notes.');
+    expect(results[1].content).toBeUndefined();
+    expect(results[1].snippet).toBe('Fixtures and scores.');
   });
 });
 
@@ -181,6 +233,28 @@ describe('Wikipedia adapter', () => {
     const [url] = fetchImpl.mock.calls[0];
     expect(String(url)).toContain('origin=*');
   });
+
+  it('ignores includeContent and returns snippets only', async () => {
+    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => jsonResponse({
+      query: {
+        search: [
+          { title: 'Compound interest', snippet: 'the addition of interest to principal' },
+        ],
+      },
+    }));
+
+    const results = await wikipediaProvider.search('public data', {
+      maxResults: 1,
+      apiKey: '',
+      includeContent: true,
+      signal: new AbortController().signal,
+      fetchImpl,
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].content).toBeUndefined();
+    expect(results[0].snippet).toBe('the addition of interest to principal');
+  });
 });
 
 describe('web_search handler', () => {
@@ -206,6 +280,67 @@ describe('web_search handler', () => {
     expect(result.ok).toBe(false);
     expect(result.error?.code).toBe('NetworkError');
     expect(JSON.stringify(result)).not.toMatch(/https?:\/\//);
+  });
+
+  it('plumbs include_content through to the provider and surfaces content in the result', async () => {
+    const fetchImpl = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => jsonResponse({
+      results: [
+        {
+          title: 'Quarterly filing',
+          url: 'https://finance.example/reports/q1',
+          content: 'Revenue table and notes.',
+          raw_content: 'Full extracted report text.',
+        },
+      ],
+    }));
+    const executor = new ToolExecutor(new WorkbookRegistry(), async () => {
+      throw new Error('runtime none should not use Excel runner');
+    });
+    executor.register(WEB_SEARCH, createWebSearchHandler({
+      getProvider: () => 'tavily',
+      getApiKey: () => 'key',
+      fetchImpl,
+    }));
+
+    const call: ToolCall = {
+      id: 'search_call',
+      name: 'web_search',
+      arguments: { query: 'public data', include_content: true },
+      workbookId: 'host',
+      mutating: false,
+    };
+    const result = await executor.execute(call, { workbookId: 'host' });
+
+    expect(result.ok).toBe(true);
+    const [, init] = fetchImpl.mock.calls[0];
+    expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({ include_raw_content: 'text' });
+    expect((result.data as { results: Array<{ content?: string }> }).results[0].content)
+      .toBe('Full extracted report text.');
+  });
+
+  it('rejects a non-boolean include_content with a ValidationError', async () => {
+    const fetchImpl = vi.fn();
+    const executor = new ToolExecutor(new WorkbookRegistry(), async () => {
+      throw new Error('runtime none should not use Excel runner');
+    });
+    executor.register(WEB_SEARCH, createWebSearchHandler({
+      getProvider: () => 'tavily',
+      getApiKey: () => 'key',
+      fetchImpl,
+    }));
+
+    const call: ToolCall = {
+      id: 'search_call',
+      name: 'web_search',
+      arguments: { query: 'public data', include_content: 'yes' },
+      workbookId: 'host',
+      mutating: false,
+    };
+    const result = await executor.execute(call, { workbookId: 'host' });
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe('ValidationError');
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });
 

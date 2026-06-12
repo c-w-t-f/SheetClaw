@@ -12,7 +12,12 @@ export interface SearchResult {
   url: string;
   snippet?: string;
   publishedAt?: string;
+  /** Extracted page text, present only when includeContent was requested and the provider supports it. */
+  content?: string;
 }
+
+/** Cap on extracted page text per result so tool output stays bounded. */
+export const MAX_RESULT_CONTENT_CHARS = 4000;
 
 export interface SearchProviderAdapter {
   id: SearchProviderId;
@@ -29,6 +34,8 @@ export interface SearchProviderAdapter {
       apiKey: string;
       baseUrl?: string;
       engineId?: string;
+      /** Also return extracted page text per result. Providers without support ignore this. */
+      includeContent?: boolean;
       signal: AbortSignal;
       fetchImpl?: typeof fetch;
     }
