@@ -37,6 +37,41 @@ export default function AboutPanel() {
         OpenAI-compatible endpoint including OpenRouter.
       </Body1>
 
+      <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>
+        Created by Christopher Wong ·{' '}
+        <a
+          href="https://iconlearning.com.my"
+          target="_blank"
+          rel="noreferrer"
+          style={{ color: 'inherit' }}
+        >
+          Icon Learning &amp; Development Sdn Bhd
+        </a>
+      </Caption1>
+
+      <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>
+        Licensed under{' '}
+        <a
+          href="https://github.com/cwtf/SheetClaw/blob/master/LICENSE.md"
+          target="_blank"
+          rel="noreferrer"
+          style={{ color: 'inherit' }}
+        >
+          PolyForm Noncommercial 1.0.0
+        </a>
+        {' '}— free for personal and noncommercial use.
+      </Caption1>
+
+      <Caption1 style={{ color: tokens.colorNeutralForeground3 }}>
+        Commercial use requires a separate license:{' '}
+        <a
+          href="mailto:christopher.wong@iconlearning.com.my"
+          style={{ color: 'inherit' }}
+        >
+          christopher.wong@iconlearning.com.my
+        </a>
+      </Caption1>
+
       <a
         href="https://cwtf.github.io/SheetClaw/privacy.html"
         target="_blank"

@@ -8,7 +8,7 @@
 
   <Id>F58DEFDB-FB64-4DA7-9F25-761DAB45DE9B</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>cwtf</ProviderName>
+  <ProviderName>Icon Learning &amp; Development Sdn Bhd</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="SheetClaw"/>
   <Description DefaultValue="SheetClaw helps read, analyze, and edit Excel workbooks through an agentic chat interface."/>

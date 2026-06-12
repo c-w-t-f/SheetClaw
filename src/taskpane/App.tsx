@@ -41,7 +41,7 @@ export default function App() {
               lineHeight: 1.2,
             }}
           >
-            Workbook agent
+            Workbook agent · by Icon Learning &amp; Development
           </Caption1>
         </div>
       </div>

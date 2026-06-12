@@ -53,6 +53,7 @@ const PRE_EXISTING_CONFIG_HOSTS = [
   'www.w3.org',
   'cwtf.github.io',
   'github.com',
+  'iconlearning.com.my',
   'public.example',
   'finance.example',
   'weather.example',

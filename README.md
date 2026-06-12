@@ -142,4 +142,16 @@ npm run validate-manifest
 
 ## License
 
-MIT. See [LICENSE.md](LICENSE.md).
+SheetClaw is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE.md) —
+free to use, modify, and share for noncommercial purposes: personal productivity,
+study, hobby projects, and use by charities, schools, public research bodies, and
+government institutions.
+
+Commercial use — including paid training courses and workshops (HRD Corp-claimable
+programmes included), consultancy or client-facing engagements, and bundling
+SheetClaw into a commercial product or service — is not permitted under this
+license and requires a separate commercial license. For the avoidance of doubt,
+we do not consider for-profit training providers to be "educational institutions"
+under the license.
+
+Commercial licensing enquiries: christopher.wong@iconlearning.com.my
